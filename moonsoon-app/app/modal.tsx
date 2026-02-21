@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { Platform } from 'react-native';
+import { Text, Platform } from 'react-native';
 import { supabase } from '../utils/supabase'
 
 import { ScreenContent } from '@/components/ScreenContent';
@@ -7,7 +7,7 @@ import { ScreenContent } from '@/components/ScreenContent';
 export default function Modal() {
   return (
     <>
-      <ScreenContent path="app/modal.tsx" title="Modal"></ScreenContent>
+      <Text className="text-xl">Hello Modal</Text>
       <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
     </>
   );
