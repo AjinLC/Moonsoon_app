@@ -1,60 +1,24 @@
-# --- Dependencies ---
-node_modules
-.pnpm-store
-
-# --- TurboRepo ---
-.turbo
-
-# --- Operating System ---
-.DS_Store
-Thumbs.db
-ehthumbs.db
-desktop.ini
-
-# --- Environment Variables (CRITICAL) ---
-# Never commit your secrets (DB passwords, API keys)
-.env
-.env.*
-!.env.example
-*.env
-
-# --- NestJS (API) ---
-/apps/api/dist
-/apps/api/coverage
-/apps/api/*.log
-
-# --- Expo & React Native (Mobile) ---
+node_modules/
 .expo/
+dist/
+npm-debug.*
 *.jks
-*.keystore
-*.pem
-/apps/mobile/web-build/
-/apps/mobile/dist/
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+# expo router
+expo-env.d.ts
 
-# If you ever "prebuild" (generate native folders):
-/apps/mobile/android/
-/apps/mobile/ios/
 
-# --- Database (Prisma) ---
-# Ignore the local SQLite file if you ever use one (though you are on Postgres)
-*.sqlite
-*.sqlite-journal
 
-# --- IDEs & Editors ---
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-.idea
-*.swp
-*.swo
+ios
+android
 
-# --- Logs ---
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+# macOS
+.DS_Store
 
-# --- Testing ---
-coverage/
-cypress/videos
-cypress/screenshots
+# Temporary files created by Metro to check the health of the file watcher
+.metro-health-check*
