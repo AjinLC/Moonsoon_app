@@ -12,36 +12,57 @@ import {
 import { Link } from 'expo-router';
 import { supabase } from '../../utils/supabase';
 
-export default function Login() {
+export default function ForgotPassword() {
   // ---- State ----
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   // ---- Submit handler ----
-  const handleLogin = async () => {
-    // Basic client-side validation
-    if (!email.trim() || !password) {
-      setError('Please fill in both fields.');
+  const handleReset = async () => {
+    if (!email.trim()) {
+      setError('Please enter your email address.');
       return;
     }
 
     setError('');
     setLoading(true);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      // This URL is where Supabase redirects after the user clicks the reset link.
+      // For mobile deep-linking you'll configure this later with your app scheme.
+      // For now we leave it undefined which uses Supabase's default behaviour.
     });
 
     setLoading(false);
 
-    if (signInError) {
-      setError(signInError.message);
+    if (resetError) {
+      setError(resetError.message);
+      return;
     }
-    // On success, onAuthStateChange fires → session updates → root layout redirects to (tabs)
+
+    setSuccess(true);
   };
+
+  // ---- Success state ----
+  if (success) {
+    return (
+      <View className="flex-1 bg-white justify-center px-8">
+        <Text className="text-3xl font-bold text-center mb-4">Email Sent</Text>
+        <Text className="text-base text-gray-500 text-center mb-8">
+          If an account exists for{' '}
+          <Text className="font-semibold text-gray-700">{email}</Text>, you'll receive a password
+          reset link shortly. Check your inbox (and spam folder).
+        </Text>
+        <Link href="/(auth)/login" asChild>
+          <TouchableOpacity className="bg-indigo-600 rounded-xl py-4 items-center">
+            <Text className="text-white text-base font-semibold">Back to Sign In</Text>
+          </TouchableOpacity>
+        </Link>
+      </View>
+    );
+  }
 
   // ---- UI ----
   return (
@@ -53,9 +74,9 @@ export default function Login() {
         keyboardShouldPersistTaps="handled">
         <View className="flex-1 justify-center px-8">
           {/* Header */}
-          <Text className="text-3xl font-bold text-center mb-2">Welcome Back</Text>
+          <Text className="text-3xl font-bold text-center mb-2">Reset Password</Text>
           <Text className="text-base text-gray-500 text-center mb-10">
-            Sign in to your account
+            Enter your email and we'll send you a reset link
           </Text>
 
           {/* Error banner */}
@@ -68,7 +89,7 @@ export default function Login() {
           {/* Email */}
           <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Email</Text>
           <TextInput
-            className="border border-gray-300 rounded-xl px-4 py-3 mb-4 text-base bg-gray-50"
+            className="border border-gray-300 rounded-xl px-4 py-3 mb-6 text-base bg-gray-50"
             placeholder="you@example.com"
             placeholderTextColor="#9CA3AF"
             value={email}
@@ -79,44 +100,23 @@ export default function Login() {
             autoComplete="email"
           />
 
-          {/* Password */}
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Password</Text>
-          <TextInput
-            className="border border-gray-300 rounded-xl px-4 py-3 mb-2 text-base bg-gray-50"
-            placeholder="••••••••"
-            placeholderTextColor="#9CA3AF"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            textContentType="password"
-            autoComplete="password"
-          />
-
-          {/* Forgot password link */}
-          <Link href="./forgot-password" asChild>
-            <TouchableOpacity className="self-end mb-6">
-              <Text className="text-indigo-600 text-sm font-medium">Forgot password?</Text>
-            </TouchableOpacity>
-          </Link>
-
           {/* Submit button */}
           <TouchableOpacity
-            onPress={handleLogin}
+            onPress={handleReset}
             disabled={loading}
             className={`rounded-xl py-4 items-center ${loading ? 'bg-indigo-300' : 'bg-indigo-600'}`}>
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className="text-white text-base font-semibold">Sign In</Text>
+              <Text className="text-white text-base font-semibold">Send Reset Link</Text>
             )}
           </TouchableOpacity>
 
-          {/* Signup link */}
+          {/* Back to login */}
           <View className="flex-row justify-center mt-8">
-            <Text className="text-gray-500">Don't have an account? </Text>
-            <Link href="./signup" asChild>
+            <Link href="/(auth)/login" asChild>
               <TouchableOpacity>
-                <Text className="text-indigo-600 font-semibold">Sign Up</Text>
+                <Text className="text-indigo-600 font-semibold">Back to Sign In</Text>
               </TouchableOpacity>
             </Link>
           </View>
