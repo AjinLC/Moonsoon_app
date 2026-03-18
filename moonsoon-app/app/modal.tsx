@@ -1,7 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { Text, View, Platform, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '../utils/supabase'
 
 export default function Modal() {
   const router = useRouter();
