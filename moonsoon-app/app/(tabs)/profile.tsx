@@ -1,5 +1,4 @@
 import { Stack } from 'expo-router';
-import { supabase } from '../../utils/supabase'
 import { Text, View } from 'react-native';
 
 export default function Home() {
