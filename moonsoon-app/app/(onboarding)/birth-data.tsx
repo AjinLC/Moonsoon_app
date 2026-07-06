@@ -1,30 +1,17 @@
 import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/context/ThemeContext';
 import { useBirthData } from '@/context/BirthDataContext';
+import { CityAutocomplete, CitySelection } from '@/components/CityAutocomplete';
 import { Fonts } from '@/constants/fonts';
-
-const formatDate = (d: Date) =>
-  `${String(d.getDate()).padStart(2, '0')} / ${String(d.getMonth() + 1).padStart(2, '0')} / ${d.getFullYear()}`;
-const formatTime = (d: Date) =>
-  `${String(d.getHours()).padStart(2, '0')} : ${String(d.getMinutes()).padStart(2, '0')}`;
-const isoDate = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const isoTime = (d: Date) =>
-  `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:00`;
+import { formatDate, formatTime, isoDate, isoTime } from '@/utils/date';
 
 export default function BirthData() {
+  const { t } = useTranslation();
   const { palette, accent } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -33,6 +20,7 @@ export default function BirthData() {
   const [date, setDate] = useState<Date | null>(null);
   const [time, setTime] = useState<Date | null>(null);
   const [place, setPlace] = useState('');
+  const [coords, setCoords] = useState<CitySelection | null>(null);
   const [showDate, setShowDate] = useState(false);
   const [showTime, setShowTime] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -40,10 +28,14 @@ export default function BirthData() {
   const next = async (skip = false) => {
     setSaving(true);
     if (!skip) {
+      // Coordinates only count when they belong to the text still in the field.
+      const coordsValid = coords !== null && coords.label === place.trim();
       await save({
         dateOfBirth: date ? isoDate(date) : null,
         timeOfBirth: time ? isoTime(time) : null,
         placeOfBirth: place.trim() || null,
+        birthLat: coordsValid ? coords.lat : null,
+        birthLng: coordsValid ? coords.lng : null,
       });
     }
     setSaving(false);
@@ -129,7 +121,7 @@ export default function BirthData() {
             color: palette.textPrimary,
             marginBottom: 12,
           }}>
-          Your birth, in full.
+          {t('onboarding.birthDataTitle')}
         </Text>
         <Text
           style={{
@@ -138,14 +130,14 @@ export default function BirthData() {
             color: palette.textSecondary,
             marginBottom: 40,
           }}>
-          We use this to calculate your chart. The more precise, the more honest the reading.
+          {t('onboarding.birthDataLead')}
         </Text>
 
         <Field
-          label="Date of birth"
+          label={t('onboarding.dateOfBirth')}
           value={date ? formatDate(date) : undefined}
-          placeholder="DD / MM / YYYY"
-          helper="Use the date on your birth certificate."
+          placeholder={t('onboarding.datePlaceholder')}
+          helper={t('onboarding.dateHelper')}
           onPress={() => setShowDate(true)}
         />
         {showDate && (
@@ -161,10 +153,10 @@ export default function BirthData() {
         )}
 
         <Field
-          label="Time of birth"
+          label={t('onboarding.timeOfBirth')}
           value={time ? formatTime(time) : undefined}
-          placeholder="HH : MM"
-          helper="Check your birth certificate if you can."
+          placeholder={t('onboarding.timePlaceholder')}
+          helper={t('onboarding.timeHelper')}
           onPress={() => setShowTime(true)}
         />
         {showTime && (
@@ -180,24 +172,10 @@ export default function BirthData() {
         )}
 
         <Field
-          label="Place of birth"
-          placeholder="City, Country"
-          helper="A nearby major city is fine if you’re unsure.">
-          <TextInput
-            value={place}
-            onChangeText={setPlace}
-            placeholder="City, Country"
-            placeholderTextColor={palette.textTertiary}
-            style={{
-              height: 48,
-              borderWidth: 1,
-              borderColor: palette.border,
-              backgroundColor: palette.surface,
-              paddingHorizontal: 12,
-              fontSize: 15,
-              color: palette.textPrimary,
-            }}
-          />
+          label={t('onboarding.placeOfBirth')}
+          placeholder={t('onboarding.placePlaceholder')}
+          helper={t('onboarding.placeHelper')}>
+          <CityAutocomplete value={place} onChangeText={setPlace} onSelect={setCoords} />
         </Field>
 
         <View style={{ flex: 1 }} />
@@ -214,13 +192,11 @@ export default function BirthData() {
             marginTop: 24,
           }}>
           <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
-            Calculate my chart
+            {t('onboarding.calculate')}
           </Text>
         </Pressable>
-        <Pressable
-          onPress={() => next(true)}
-          style={{ alignItems: 'center', paddingVertical: 16 }}>
-          <Text style={{ color: palette.textSecondary, fontSize: 15 }}>Skip for now</Text>
+        <Pressable onPress={() => next(true)} style={{ alignItems: 'center', paddingVertical: 16 }}>
+          <Text style={{ color: palette.textSecondary, fontSize: 15 }}>{t('common.skip')}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>

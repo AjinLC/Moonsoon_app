@@ -3,33 +3,14 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/context/ThemeContext';
 import { Fonts } from '@/constants/fonts';
 
-const FEATURES = [
-  {
-    title: 'Personalized full-length readings',
-    desc: 'Daily horoscopes that pull directly from your chart, not from a generic sun-sign feed.',
-  },
-  {
-    title: 'Unlimited tarot draws',
-    desc: 'Pull more than once a day. Save and revisit any reading.',
-  },
-  {
-    title: 'Yearly forecast',
-    desc: 'A long-form look at the transits shaping the next twelve months of your life.',
-  },
-  {
-    title: 'Private journaling',
-    desc: 'Lock entries with your device passcode and link them to readings and tarot draws.',
-  },
-];
-
-const TEASER =
-  'Mercury sharpens your thinking and softens your speech, making this an unusually good day for the conversations you have been putting off. The Moon in Cancer asks you to lead with care. Trust the slow movements; nothing today rewards the rush. ' +
-  'A small honesty becomes a doorway. Speak the soft thing you almost kept to yourself.';
+const FEATURE_KEYS = ['feature1', 'feature2', 'feature3', 'feature4'] as const;
 
 export default function Paywall() {
+  const { t } = useTranslation();
   const { palette, accent, mode } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -64,7 +45,7 @@ export default function Paywall() {
         </View>
 
         <View style={{ alignItems: 'center', marginBottom: 32 }}>
-          <Caption center>Premium</Caption>
+          <Caption center>{t('paywall.premium')}</Caption>
           <Text
             style={{
               fontFamily: Fonts.display,
@@ -75,7 +56,7 @@ export default function Paywall() {
               marginTop: 16,
               marginBottom: 12,
             }}>
-            Unlock your full alignment.
+            {t('paywall.headline')}
           </Text>
           <Text
             style={{
@@ -84,7 +65,7 @@ export default function Paywall() {
               color: palette.textSecondary,
               textAlign: 'center',
             }}>
-            Deeper readings, unlimited tarot, and the long view of your year.
+            {t('paywall.lead')}
           </Text>
         </View>
 
@@ -98,7 +79,7 @@ export default function Paywall() {
               lineHeight: 24,
               color: palette.textPrimary,
             }}>
-            {TEASER}
+            {t('paywall.teaser')}
           </Text>
           <BlurView
             intensity={28}
@@ -122,10 +103,10 @@ export default function Paywall() {
             color: palette.textPrimary,
             marginBottom: 16,
           }}>
-          What you get
+          {t('paywall.whatYouGet')}
         </Text>
-        {FEATURES.map((f) => (
-          <View key={f.title} style={{ marginBottom: 16 }}>
+        {FEATURE_KEYS.map((key) => (
+          <View key={key} style={{ marginBottom: 16 }}>
             <Text
               style={{
                 fontSize: 15,
@@ -133,7 +114,7 @@ export default function Paywall() {
                 color: palette.textPrimary,
                 marginBottom: 4,
               }}>
-              — {f.title}
+              — {t(`paywall.${key}Title`)}
             </Text>
             <Text
               style={{
@@ -142,7 +123,7 @@ export default function Paywall() {
                 color: palette.textTertiary,
                 marginLeft: 20,
               }}>
-              {f.desc}
+              {t(`paywall.${key}Desc`)}
             </Text>
           </View>
         ))}
@@ -153,13 +134,8 @@ export default function Paywall() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 }}>
           {(
             [
-              { id: 'monthly', label: 'Monthly', price: '$4.99 / month', tag: '' },
-              {
-                id: 'yearly',
-                label: 'Yearly — save 40%',
-                price: '$2.99 / month',
-                tag: 'Best value',
-              },
+              { id: 'monthly', label: t('paywall.monthly'), price: t('paywall.monthlyPrice') },
+              { id: 'yearly', label: t('paywall.yearly'), price: t('paywall.yearlyPrice') },
             ] as const
           ).map((p) => {
             const on = tier === p.id;
@@ -198,7 +174,7 @@ export default function Paywall() {
             justifyContent: 'center',
           }}>
           <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
-            Start free trial
+            {t('paywall.startTrial')}
           </Text>
         </Pressable>
         <Text
@@ -208,7 +184,7 @@ export default function Paywall() {
             textAlign: 'center',
             marginTop: 12,
           }}>
-          7-day free trial, cancel anytime
+          {t('paywall.trialNote')}
         </Text>
       </ScrollView>
     </View>

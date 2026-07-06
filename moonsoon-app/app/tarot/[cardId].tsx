@@ -1,54 +1,50 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/context/ThemeContext';
 import { Fonts } from '@/constants/fonts';
+import { getCardById, TarotCard } from '@/utils/tarot';
 
-const CARDS: Record<
+const FALLBACK: TarotCard = {
+  id: 'major-18',
+  name: 'The Moon',
+  arcana: 'major',
+  keywords: ['Intuition', 'Illusion', 'Subconscious'],
+  keywordsReversed: ['Confusion released', 'Truth', 'Clarity'],
+  description: 'Walk a path that is not fully lit, and keep walking.',
+};
+
+const READINGS: Record<
   string,
-  {
-    numeral: string;
-    name: string;
-    keywords: string;
-    reading: string;
-    astrology: string;
-    about: string;
-  }
+  { reading: string; astrology: string; about: string; numeral?: string }
 > = {
-  'the-moon': {
+  'major-18': {
     numeral: 'XVIII',
-    name: 'The Moon',
-    keywords: 'Intuition · Illusion · Subconscious',
     reading:
-      'You are being asked to walk a path that is not fully lit, and to keep walking anyway. The Moon does not promise clarity — she promises that what is hidden will keep returning until you turn and look.\n\nNotice what your body is telling you. Notice what you are pretending not to notice. Trust the dream you keep having; the symbol is doing real work.\n\nThis is not a card of certainty. It is a card of becoming someone who can move through uncertainty without losing themselves.',
+      'You are being asked to walk a path that is not fully lit, and to keep walking anyway. The Moon does not promise clarity — she promises that what is hidden will keep returning until you turn and look.\n\nNotice what your body is telling you. Notice what you are pretending not to notice. Trust the dream you keep having; the symbol is doing real work.',
     astrology:
-      'The Moon is associated with Pisces and the watery edges of the chart. Today’s alignment activates your imaginative house and softens your boundaries — keep good company.',
+      'Linked to Pisces — the watery edges of the chart, the imaginative house softened today.',
     about:
-      'Eighteenth in the Major Arcana. Two pillars frame a moonlit road; a wolf and a dog howl at the sky while a small creature crawls from the depths. The lesson is initiation through what cannot be fully seen.',
+      'Two pillars frame a moonlit road; a wolf and a dog howl at the sky while a small creature crawls from the depths. Initiation through what cannot be fully seen.',
   },
-  'the-star': {
+  'major-17': {
     numeral: 'XVII',
-    name: 'The Star',
-    keywords: 'Hope · Renewal · Quiet faith',
     reading:
-      'After a long stretch of holding tension, something in you is allowed to let go. The Star is the soft exhale that comes after the storm has finished its work.\n\nYou do not have to perform recovery. You can simply rest in the knowledge that what was hardest has already passed.',
+      'After a long stretch of holding tension, something in you is allowed to let go. The Star is the soft exhale that comes after the storm has finished its work.',
     astrology: 'Linked to Aquarius — community, vision, the long view of your own life.',
     about:
-      'A figure kneels by water, pouring from two vessels into the earth and the river. Above her, a single bright star anchors a constellation of seven smaller ones.',
+      'A figure kneels by water, pouring from two vessels. A single bright star anchors a constellation.',
   },
-  'the-empress': {
+  'major-03': {
     numeral: 'III',
-    name: 'The Empress',
-    keywords: 'Abundance · Care · Earned softness',
     reading:
       'You are being invited to receive. Not to earn. Not to deserve. To receive. Notice where you are still translating love into a transaction.',
     astrology: 'Ruled by Venus — pleasure, art, the body’s wisdom.',
     about: 'A seated figure in a wheat field, crowned with stars, surrounded by ripening fruit.',
   },
-  'the-tower': {
+  'major-16': {
     numeral: 'XVI',
-    name: 'The Tower',
-    keywords: 'Rupture · Truth · Necessary collapse',
     reading:
       'Something built on a fault line is coming apart so something more honest can be built. This is uncomfortable. It is also a kind of mercy.',
     astrology: 'Mars — the planet of friction and forward motion.',
@@ -56,13 +52,51 @@ const CARDS: Record<
   },
 };
 
+function deriveNumeral(card: TarotCard): string {
+  if (card.arcana === 'major') {
+    const num = parseInt(card.id.split('-')[1], 10);
+    const ROMAN = [
+      '0',
+      'I',
+      'II',
+      'III',
+      'IV',
+      'V',
+      'VI',
+      'VII',
+      'VIII',
+      'IX',
+      'X',
+      'XI',
+      'XII',
+      'XIII',
+      'XIV',
+      'XV',
+      'XVI',
+      'XVII',
+      'XVIII',
+      'XIX',
+      'XX',
+      'XXI',
+    ];
+    return ROMAN[num] ?? '';
+  }
+  return card.suit?.toUpperCase() ?? '';
+}
+
 export default function TarotRevealed() {
-  const { cardId } = useLocalSearchParams<{ cardId: string }>();
+  const params = useLocalSearchParams<{ cardId: string; reversed?: string; ids?: string }>();
+  const { t } = useTranslation();
   const { palette, accent } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const card = CARDS[cardId as string] ?? CARDS['the-moon'];
+  const card = getCardById(params.cardId as string) ?? FALLBACK;
+  const isReversed = params.reversed?.split(',')[0] === '1';
+  const reading = READINGS[card.id];
+
+  const numeral = reading?.numeral ?? deriveNumeral(card);
+  const keywords = (isReversed ? card.keywordsReversed : card.keywords).join(' · ');
 
   const Caption = ({ children }: { children: string }) => (
     <Text
@@ -81,6 +115,10 @@ export default function TarotRevealed() {
     <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 28 }} />
   );
 
+  const fallbackReading = `${card.description} ${
+    isReversed ? t('tarot.readingFallbackReversed') : t('tarot.readingFallbackUpright')
+  }`;
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: palette.background }}
@@ -90,10 +128,9 @@ export default function TarotRevealed() {
         paddingHorizontal: 32,
       }}>
       <Pressable onPress={() => router.back()} style={{ marginBottom: 24 }}>
-        <Text style={{ fontSize: 15, color: palette.textPrimary }}>‹ Back</Text>
+        <Text style={{ fontSize: 15, color: palette.textPrimary }}>‹ {t('common.back')}</Text>
       </Pressable>
 
-      {/* Card */}
       <View
         style={{
           width: 200,
@@ -104,8 +141,9 @@ export default function TarotRevealed() {
           alignItems: 'center',
           justifyContent: 'space-between',
           marginBottom: 32,
+          transform: [{ rotate: isReversed ? '180deg' : '0deg' }],
         }}>
-        <Text style={{ fontSize: 11, color: '#FFFFFF', letterSpacing: 1.5 }}>{card.numeral}</Text>
+        <Text style={{ fontSize: 11, color: '#FFFFFF', letterSpacing: 1.5 }}>{numeral}</Text>
         <View style={{ alignItems: 'center', justifyContent: 'center' }}>
           <View
             style={{
@@ -134,54 +172,52 @@ export default function TarotRevealed() {
               fontSize: 24,
               color: '#FFFFFF',
               marginBottom: 6,
+              textAlign: 'center',
             }}>
             {card.name}
           </Text>
           <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', textAlign: 'center' }}>
-            {card.keywords}
+            {keywords}
           </Text>
         </View>
       </View>
 
+      {isReversed && (
+        <Text
+          style={{
+            fontSize: 11,
+            fontWeight: '500',
+            letterSpacing: 1.5,
+            textTransform: 'uppercase',
+            color: palette.textTertiary,
+            textAlign: 'center',
+            marginBottom: 8,
+          }}>
+          {t('tarot.reversed')}
+        </Text>
+      )}
+
       <Divider />
-      <Caption>Your reading</Caption>
-      <Text
-        style={{
-          fontSize: 15,
-          lineHeight: 24,
-          color: palette.textPrimary,
-          marginTop: 16,
-        }}>
-        {card.reading}
+      <Caption>{t('tarot.yourReading')}</Caption>
+      <Text style={{ fontSize: 15, lineHeight: 24, color: palette.textPrimary, marginTop: 16 }}>
+        {reading?.reading ?? fallbackReading}
       </Text>
 
       <Divider />
-      <Caption>Astrological context</Caption>
-      <Text
-        style={{
-          fontSize: 15,
-          lineHeight: 24,
-          color: palette.textPrimary,
-          marginTop: 16,
-        }}>
-        {card.astrology}
+      <Caption>{t('tarot.astroContext')}</Caption>
+      <Text style={{ fontSize: 15, lineHeight: 24, color: palette.textPrimary, marginTop: 16 }}>
+        {reading?.astrology ?? t('tarot.astroFallback')}
       </Text>
 
       <Divider />
-      <Caption>About this card</Caption>
-      <Text
-        style={{
-          fontSize: 15,
-          lineHeight: 24,
-          color: palette.textPrimary,
-          marginTop: 16,
-        }}>
-        {card.about}
+      <Caption>{t('tarot.aboutCard')}</Caption>
+      <Text style={{ fontSize: 15, lineHeight: 24, color: palette.textPrimary, marginTop: 16 }}>
+        {reading?.about ?? card.description}
       </Text>
 
       <View style={{ alignItems: 'flex-end', marginTop: 32 }}>
         <Pressable>
-          <Text style={{ fontSize: 15, color: accent }}>Share reading</Text>
+          <Text style={{ fontSize: 15, color: accent }}>{t('tarot.shareReading')}</Text>
         </Pressable>
       </View>
     </ScrollView>

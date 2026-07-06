@@ -1,11 +1,21 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/context/ThemeContext';
 import { useSession } from '@/context/AuthContext';
 import { useBirthData } from '@/context/BirthDataContext';
+import { usePreferences } from '@/context/PreferencesContext';
+import { useSeed } from '@/context/SeedContext';
+import { Accents, AccentName } from '@/constants/theme';
+import { Toggle } from '@/components/Toggle';
+import { BottomSheetModal } from '@/components/BottomSheetModal';
+import { CityAutocomplete, CitySelection } from '@/components/CityAutocomplete';
 import { Fonts } from '@/constants/fonts';
+import { BackgroundGlyphs } from '@/components/BackgroundGlyphs';
+import { formatDate, formatTime, isoDate, isoTime } from '@/utils/date';
 
 const BIG_THREE = [
   {
@@ -45,27 +55,27 @@ function SubTabs({
   accent,
   palette,
 }: {
-  tabs: string[];
+  tabs: { key: string; label: string }[];
   active: string;
-  onChange: (t: string) => void;
+  onChange: (key: string) => void;
   accent: string;
   palette: { textPrimary: string; textTertiary: string };
 }) {
   return (
     <View style={{ flexDirection: 'row', marginBottom: 8 }}>
-      {tabs.map((t) => {
-        const on = t === active;
+      {tabs.map(({ key, label }) => {
+        const on = key === active;
         return (
           <Pressable
-            key={t}
-            onPress={() => onChange(t)}
+            key={key}
+            onPress={() => onChange(key)}
             style={{ marginRight: 32, paddingBottom: 12 }}>
             <Text
               style={{
                 fontSize: 15,
                 color: on ? palette.textPrimary : palette.textTertiary,
               }}>
-              {t}
+              {label}
             </Text>
             <View
               style={{
@@ -85,14 +95,21 @@ function SubTabs({
 }
 
 function YourChart() {
+  const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const { dateOfBirth, timeOfBirth, placeOfBirth } = useBirthData();
 
   const dob = dateOfBirth ? new Date(dateOfBirth) : null;
   const dobLabel = dob
-    ? dob.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+    ? dob.toLocaleDateString(i18n.language, { month: 'long', day: 'numeric', year: 'numeric' })
     : '—';
   const timeLabel = timeOfBirth ? timeOfBirth.slice(0, 5) : '—';
+
+  const born =
+    t('profile.bornDate', { date: dobLabel }) +
+    (timeOfBirth ? t('profile.bornAtTime', { time: timeLabel }) : '') +
+    (placeOfBirth ? t('profile.bornInPlace', { place: placeOfBirth }) : '') +
+    '.';
 
   const Caption = ({ children }: { children: string }) => (
     <Text
@@ -114,15 +131,11 @@ function YourChart() {
 
   return (
     <View>
-      <Caption>Your birth chart</Caption>
-      <Text style={{ fontSize: 15, lineHeight: 22, color: palette.textPrimary }}>
-        Born {dobLabel}
-        {timeOfBirth ? ` at ${timeLabel}` : ''}
-        {placeOfBirth ? ` in ${placeOfBirth}` : ''}.
-      </Text>
+      <Caption>{t('profile.yourBirthChart')}</Caption>
+      <Text style={{ fontSize: 15, lineHeight: 22, color: palette.textPrimary }}>{born}</Text>
 
       <Divider />
-      <Caption>The Big Three</Caption>
+      <Caption>{t('profile.bigThree')}</Caption>
       {BIG_THREE.map((item, i) => (
         <View key={item.title}>
           {i > 0 && (
@@ -144,7 +157,7 @@ function YourChart() {
       ))}
 
       <Divider />
-      <Caption>Houses & Placements</Caption>
+      <Caption>{t('profile.houses')}</Caption>
       <Text
         style={{
           fontSize: 13,
@@ -152,7 +165,7 @@ function YourChart() {
           color: palette.textSecondary,
           marginBottom: 24,
         }}>
-        The houses describe the rooms of your life — where each sign’s energy lives and works.
+        {t('profile.housesLead')}
       </Text>
       {HOUSES.map((h, i) => (
         <View key={h.title}>
@@ -177,13 +190,33 @@ function YourChart() {
   );
 }
 
+type EditField = 'name' | 'dob' | 'tob' | 'place';
+
 function Settings() {
-  const { palette, accent, mode, setMode, accentName } = useTheme();
-  const { name, dateOfBirth, timeOfBirth, placeOfBirth } = useBirthData();
-  const { user, signOut } = useSession();
+  const { t } = useTranslation();
+  const { palette, accent, themePreference, setThemePreference, accentName, setAccent } =
+    useTheme();
+  const birth = useBirthData();
+  const prefs = usePreferences();
+  const { user, session, signOut } = useSession();
+  const { seedSource } = useSeed();
   const router = useRouter();
 
-  const Caption = ({ children, style }: { children: string; style?: any }) => (
+  const [editing, setEditing] = useState<EditField | null>(null);
+  const [draftText, setDraftText] = useState('');
+  const [draftDate, setDraftDate] = useState(new Date(1995, 0, 1));
+  const [draftCoords, setDraftCoords] = useState<CitySelection | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const readingSourceLabel: Record<string, string> = {
+    birth: t('profile.readingSourceBirth'),
+    location: t('profile.readingSourceLocation'),
+    random: t('profile.readingSourceRandom'),
+    loading: '—',
+  };
+
+  const Caption = ({ children, style }: { children: string; style?: object }) => (
     <Text
       style={[
         {
@@ -199,27 +232,116 @@ function Settings() {
     </Text>
   );
 
-  const accountFields: { label: string; value: string }[] = [
-    { label: 'Name', value: name ?? '—' },
-    { label: 'Email', value: user?.email ?? '—' },
-    { label: 'Date of birth', value: dateOfBirth ?? '—' },
-    { label: 'Time of birth', value: timeOfBirth?.slice(0, 5) ?? '—' },
-    { label: 'Place of birth', value: placeOfBirth ?? '—' },
+  const openEdit = (field: EditField) => {
+    setShowPicker(false);
+    setDraftCoords(null);
+    if (field === 'name') setDraftText(birth.name ?? '');
+    if (field === 'place') setDraftText(birth.placeOfBirth ?? '');
+    if (field === 'dob')
+      setDraftDate(
+        birth.dateOfBirth ? new Date(`${birth.dateOfBirth}T12:00:00`) : new Date(1995, 0, 1)
+      );
+    if (field === 'tob') {
+      const base = new Date();
+      if (birth.timeOfBirth) {
+        base.setHours(parseInt(birth.timeOfBirth.slice(0, 2), 10));
+        base.setMinutes(parseInt(birth.timeOfBirth.slice(3, 5), 10));
+      }
+      setDraftDate(base);
+    }
+    setEditing(field);
+  };
+
+  const saveEdit = async () => {
+    if (editing === 'name') await birth.save({ name: draftText.trim() || null });
+    if (editing === 'dob') await birth.save({ dateOfBirth: isoDate(draftDate) });
+    if (editing === 'tob') await birth.save({ timeOfBirth: isoTime(draftDate) });
+    if (editing === 'place') {
+      const coordsValid = draftCoords !== null && draftCoords.label === draftText.trim();
+      await birth.save({
+        placeOfBirth: draftText.trim() || null,
+        birthLat: coordsValid ? draftCoords.lat : null,
+        birthLng: coordsValid ? draftCoords.lng : null,
+      });
+    }
+    setEditing(null);
+  };
+
+  const deleteAccount = () => {
+    Alert.alert(t('profile.deleteTitle'), t('profile.deleteBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('common.delete'),
+        style: 'destructive',
+        onPress: async () => {
+          if (!session) return;
+          setDeleting(true);
+          try {
+            const fnUrl =
+              process.env.EXPO_PUBLIC_SUPABASE_FUNCTIONS_URL ||
+              `${process.env.EXPO_PUBLIC_SUPABASE_URL ?? ''}/functions/v1`;
+            const res = await fetch(`${fnUrl}/delete-account`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (!res.ok) throw new Error(`delete failed: ${res.status}`);
+            await signOut();
+          } catch {
+            Alert.alert(t('profile.deleteError'));
+          } finally {
+            setDeleting(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const accountFields: { key: string; label: string; value: string; edit?: EditField }[] = [
+    { key: 'name', label: t('profile.name'), value: birth.name ?? '—', edit: 'name' },
+    { key: 'email', label: t('profile.email'), value: user?.email ?? '—' },
+    {
+      key: 'dob',
+      label: t('onboarding.dateOfBirth'),
+      value: birth.dateOfBirth ?? '—',
+      edit: 'dob',
+    },
+    {
+      key: 'tob',
+      label: t('onboarding.timeOfBirth'),
+      value: birth.timeOfBirth?.slice(0, 5) ?? '—',
+      edit: 'tob',
+    },
+    {
+      key: 'place',
+      label: t('onboarding.placeOfBirth'),
+      value: birth.placeOfBirth ?? '—',
+      edit: 'place',
+    },
   ];
 
-  const prefRows: { label: string; value: string }[] = [
-    { label: 'Accent color', value: accentName },
-    { label: 'Theme', value: mode },
-    { label: 'Daily notifications', value: 'On' },
-    { label: 'Mantra reminders', value: '07:00' },
-    { label: 'Horoscope detail level', value: 'Standard' },
+  const themeSegments: { id: 'system' | 'light' | 'dark'; label: string }[] = [
+    { id: 'system', label: t('profile.themeSystem') },
+    { id: 'light', label: t('profile.themeLight') },
+    { id: 'dark', label: t('profile.themeDark') },
   ];
+
+  const detailSegments: { id: 'brief' | 'standard'; label: string }[] = [
+    { id: 'brief', label: t('profile.detailBrief') },
+    { id: 'standard', label: t('profile.detailStandard') },
+  ];
+
+  const modalTitle: Record<EditField, string> = {
+    name: t('profile.name'),
+    dob: t('onboarding.dateOfBirth'),
+    tob: t('onboarding.timeOfBirth'),
+    place: t('onboarding.placeOfBirth'),
+  };
 
   return (
     <View>
-      <Caption style={{ marginBottom: 16 }}>Account</Caption>
+      <Caption style={{ marginBottom: 16 }}>{t('profile.account')}</Caption>
       {accountFields.map((f, i) => (
-        <View key={f.label}>
+        <View key={f.key}>
           {i > 0 && (
             <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 16 }} />
           )}
@@ -228,45 +350,174 @@ function Settings() {
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text style={{ flex: 1, fontSize: 15, color: palette.textPrimary }}>{f.value}</Text>
-            <Pressable>
-              <Text style={{ fontSize: 13, color: accent }}>Edit</Text>
-            </Pressable>
+            {f.edit && (
+              <Pressable onPress={() => openEdit(f.edit as EditField)} hitSlop={8}>
+                <Text style={{ fontSize: 13, color: accent }}>{t('common.edit')}</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       ))}
 
       <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 32 }} />
 
-      <Caption style={{ marginBottom: 16 }}>Preferences</Caption>
-      {prefRows.map((row, i) => (
-        <Pressable
-          key={row.label}
-          onPress={() => {
-            if (row.label === 'Theme') setMode(mode === 'light' ? 'dark' : 'light');
-          }}>
-          {i > 0 && (
-            <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 16 }} />
-          )}
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, color: palette.textPrimary }}>{row.label}</Text>
-              <Text style={{ fontSize: 13, color: palette.textTertiary, marginTop: 4 }}>
-                {row.value}
+      <Caption style={{ marginBottom: 16 }}>{t('profile.preferences')}</Caption>
+
+      {/* Accent color */}
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={{ flex: 1, fontSize: 15, color: palette.textPrimary }}>
+          {t('profile.accentColor')}
+        </Text>
+        {(Object.keys(Accents) as AccentName[]).map((name) => {
+          const on = accentName === name;
+          return (
+            <Pressable
+              key={name}
+              onPress={() => setAccent(name)}
+              hitSlop={6}
+              style={{
+                width: 24,
+                height: 24,
+                marginLeft: 12,
+                backgroundColor: Accents[name],
+                borderWidth: on ? 1 : 0,
+                borderColor: palette.textPrimary,
+              }}
+            />
+          );
+        })}
+      </View>
+
+      <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 16 }} />
+
+      {/* Notification toggles */}
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={{ flex: 1, fontSize: 15, color: palette.textPrimary }}>
+          {t('profile.dailyNotifications')}
+        </Text>
+        <Toggle
+          on={prefs.notificationsHoroscope}
+          onChange={() => prefs.save({ notificationsHoroscope: !prefs.notificationsHoroscope })}
+          accent={accent}
+          border={palette.border}
+        />
+      </View>
+
+      <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 16 }} />
+
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={{ flex: 1, fontSize: 15, color: palette.textPrimary }}>
+          {t('onboarding.mantraReminders')}
+        </Text>
+        <Toggle
+          on={prefs.notificationsMantra}
+          onChange={() => prefs.save({ notificationsMantra: !prefs.notificationsMantra })}
+          accent={accent}
+          border={palette.border}
+        />
+      </View>
+
+      <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 16 }} />
+
+      {/* Horoscope detail level */}
+      <Text style={{ fontSize: 15, color: palette.textPrimary, marginBottom: 12 }}>
+        {t('profile.horoscopeDetailLevel')}
+      </Text>
+      <View
+        style={{
+          flexDirection: 'row',
+          height: 36,
+          borderWidth: 0.5,
+          borderColor: palette.border,
+        }}>
+        {detailSegments.map((seg, idx) => {
+          const on = prefs.horoscopeDetailLevel === seg.id;
+          return (
+            <Pressable
+              key={seg.id}
+              onPress={() => prefs.save({ horoscopeDetailLevel: seg.id })}
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: on ? palette.surface : 'transparent',
+                borderRightWidth: idx < detailSegments.length - 1 ? 0.5 : 0,
+                borderRightColor: palette.border,
+                borderBottomWidth: on ? 0.5 : 0,
+                borderBottomColor: accent,
+              }}>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: on ? palette.textPrimary : palette.textSecondary,
+                }}>
+                {seg.label}
               </Text>
-            </View>
-            <Text style={{ fontSize: 18, color: palette.textTertiary }}>›</Text>
-          </View>
-        </Pressable>
-      ))}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 16 }} />
+      <Text style={{ fontSize: 15, color: palette.textPrimary, marginBottom: 12 }}>
+        {t('profile.theme')}
+      </Text>
+      <View
+        style={{
+          flexDirection: 'row',
+          height: 36,
+          borderWidth: 0.5,
+          borderColor: palette.border,
+        }}>
+        {themeSegments.map((seg, idx) => {
+          const on = themePreference === seg.id;
+          return (
+            <Pressable
+              key={seg.id}
+              onPress={() => setThemePreference(seg.id)}
+              style={{
+                flex: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: on ? palette.surface : 'transparent',
+                borderRightWidth: idx < themeSegments.length - 1 ? 0.5 : 0,
+                borderRightColor: palette.border,
+                borderBottomWidth: on ? 0.5 : 0,
+                borderBottomColor: accent,
+                opacity: on ? 1 : 0.85,
+              }}>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: on ? palette.textPrimary : palette.textSecondary,
+                }}>
+                {seg.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 16 }} />
+      <View>
+        <Text style={{ fontSize: 15, color: palette.textPrimary }}>
+          {t('profile.readingSource')}
+        </Text>
+        <Text style={{ fontSize: 13, color: palette.textTertiary, marginTop: 4 }}>
+          {readingSourceLabel[seedSource]}
+        </Text>
+      </View>
 
       <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 32 }} />
 
       <Pressable onPress={() => router.push('/paywall' as never)}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 15, color: palette.textPrimary }}>Subscription</Text>
+            <Text style={{ fontSize: 15, color: palette.textPrimary }}>
+              {t('profile.subscription')}
+            </Text>
             <Text style={{ fontSize: 13, color: palette.textTertiary, marginTop: 4 }}>
-              Free plan
+              {t('profile.freePlan')}
             </Text>
           </View>
           <Text style={{ fontSize: 18, color: palette.textTertiary }}>›</Text>
@@ -277,42 +528,143 @@ function Settings() {
 
       <Pressable onPress={signOut}>
         <Text style={{ fontSize: 15, color: palette.textPrimary, paddingVertical: 12 }}>
-          Sign out
+          {t('profile.signOut')}
         </Text>
       </Pressable>
       <View style={{ height: 0.5, backgroundColor: palette.border }} />
-      <Pressable>
-        <Text style={{ fontSize: 15, color: palette.textPrimary, paddingVertical: 12 }}>
-          Delete account
+      <Pressable onPress={deleteAccount} disabled={deleting}>
+        <Text
+          style={{
+            fontSize: 15,
+            color: palette.textPrimary,
+            paddingVertical: 12,
+            opacity: deleting ? 0.5 : 1,
+          }}>
+          {t('profile.deleteAccount')}
         </Text>
       </Pressable>
       <View style={{ height: 0.5, backgroundColor: palette.border }} />
+
+      {/* Edit-field modal */}
+      <BottomSheetModal visible={editing !== null} onClose={() => setEditing(null)}>
+        {editing && (
+          <>
+            <Text
+              style={{
+                fontFamily: Fonts.headingSemi,
+                fontSize: 18,
+                color: palette.textPrimary,
+                marginBottom: 24,
+              }}>
+              {modalTitle[editing]}
+            </Text>
+
+            {editing === 'name' && (
+              <TextInput
+                value={draftText}
+                onChangeText={setDraftText}
+                autoFocus
+                placeholder={t('profile.name')}
+                placeholderTextColor={palette.textTertiary}
+                style={{
+                  height: 48,
+                  borderWidth: 1,
+                  borderColor: palette.border,
+                  backgroundColor: palette.surface,
+                  paddingHorizontal: 12,
+                  fontSize: 15,
+                  color: palette.textPrimary,
+                }}
+              />
+            )}
+
+            {editing === 'place' && (
+              <CityAutocomplete
+                value={draftText}
+                onChangeText={setDraftText}
+                onSelect={setDraftCoords}
+              />
+            )}
+
+            {(editing === 'dob' || editing === 'tob') && (
+              <>
+                <Pressable
+                  onPress={() => setShowPicker(true)}
+                  style={{
+                    height: 48,
+                    borderWidth: 1,
+                    borderColor: palette.border,
+                    backgroundColor: palette.surface,
+                    justifyContent: 'center',
+                    paddingHorizontal: 12,
+                  }}>
+                  <Text style={{ fontSize: 15, color: palette.textPrimary }}>
+                    {editing === 'dob' ? formatDate(draftDate) : formatTime(draftDate)}
+                  </Text>
+                </Pressable>
+                {showPicker && (
+                  <DateTimePicker
+                    value={draftDate}
+                    mode={editing === 'dob' ? 'date' : 'time'}
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={(e, d) => {
+                      setShowPicker(Platform.OS === 'ios');
+                      if (d) setDraftDate(d);
+                    }}
+                  />
+                )}
+              </>
+            )}
+
+            <Pressable
+              onPress={saveEdit}
+              style={{
+                height: 48,
+                backgroundColor: accent,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: 32,
+              }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
+                {t('common.save')}
+              </Text>
+            </Pressable>
+          </>
+        )}
+      </BottomSheetModal>
     </View>
   );
 }
 
 export default function Profile() {
+  const { t } = useTranslation();
   const { palette, accent } = useTheme();
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<'Your chart' | 'Settings'>('Your chart');
+  const [tab, setTab] = useState<'chart' | 'settings'>('chart');
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: palette.background }}
-      contentContainerStyle={{
-        paddingTop: insets.top + 32,
-        paddingBottom: 64,
-        paddingHorizontal: 32,
-      }}>
-      <SubTabs
-        tabs={['Your chart', 'Settings']}
-        active={tab}
-        onChange={(t) => setTab(t as any)}
-        accent={accent}
-        palette={palette}
-      />
-      <View style={{ height: 0.5, backgroundColor: palette.border, marginBottom: 32 }} />
-      {tab === 'Your chart' ? <YourChart /> : <Settings />}
-    </ScrollView>
+    <View style={{ flex: 1, backgroundColor: palette.background }}>
+      <BackgroundGlyphs variant="profile" />
+      <ScrollView
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        contentContainerStyle={{
+          paddingTop: insets.top + 32,
+          paddingBottom: 64,
+          paddingHorizontal: 32,
+        }}>
+        <SubTabs
+          tabs={[
+            { key: 'chart', label: t('profile.yourChart') },
+            { key: 'settings', label: t('profile.settings') },
+          ]}
+          active={tab}
+          onChange={(key) => setTab(key as 'chart' | 'settings')}
+          accent={accent}
+          palette={palette}
+        />
+        <View style={{ height: 0.5, backgroundColor: palette.border, marginBottom: 32 }} />
+        {tab === 'chart' ? <YourChart /> : <Settings />}
+      </ScrollView>
+    </View>
   );
 }

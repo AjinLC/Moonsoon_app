@@ -10,9 +10,15 @@ import {
   ScrollView,
 } from 'react-native';
 import { Link } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../utils/supabase';
+import { useTheme } from '../../context/ThemeContext';
+import { Fonts } from '../../constants/fonts';
 
 export default function Login() {
+  const { t } = useTranslation();
+  const { palette, accent } = useTheme();
+
   // ---- State ----
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,7 +29,7 @@ export default function Login() {
   const handleLogin = async () => {
     // Basic client-side validation
     if (!email.trim() || !password) {
-      setError('Please fill in both fields.');
+      setError(t('auth.fillBothFields'));
       return;
     }
 
@@ -43,34 +49,67 @@ export default function Login() {
     // On success, onAuthStateChange fires → session updates → root layout redirects to (tabs)
   };
 
+  const labelStyle = {
+    fontSize: 11,
+    fontWeight: '500' as const,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase' as const,
+    color: palette.textTertiary,
+    marginBottom: 8,
+  };
+
+  const inputStyle = {
+    height: 48,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    color: palette.textPrimary,
+  };
+
   // ---- UI ----
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-white">
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled">
-        <View className="flex-1 justify-center px-8">
+      style={{ flex: 1, backgroundColor: palette.background }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 32 }}>
           {/* Header */}
-          <Text className="text-3xl font-bold text-center mb-2">Welcome Back</Text>
-          <Text className="text-base text-gray-500 text-center mb-10">
-            Sign in to your account
+          <Text
+            style={{
+              fontFamily: Fonts.display,
+              fontSize: 32,
+              lineHeight: 38,
+              color: palette.textPrimary,
+              marginBottom: 8,
+            }}>
+            {t('auth.welcome')}
+          </Text>
+          <Text style={{ fontSize: 15, color: palette.textSecondary, marginBottom: 40 }}>
+            {t('auth.signInLead')}
           </Text>
 
           {/* Error banner */}
           {error ? (
-            <View className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
-              <Text className="text-red-700 text-sm">{error}</Text>
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: '#B4433A',
+                paddingHorizontal: 12,
+                paddingVertical: 12,
+                marginBottom: 16,
+              }}>
+              <Text style={{ color: '#B4433A', fontSize: 13 }}>{error}</Text>
             </View>
           ) : null}
 
           {/* Email */}
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Email</Text>
+          <Text style={labelStyle}>{t('auth.email')}</Text>
           <TextInput
-            className="border border-gray-300 rounded-xl px-4 py-3 mb-4 text-base bg-gray-50"
-            placeholder="you@example.com"
-            placeholderTextColor="#9CA3AF"
+            style={[inputStyle, { marginBottom: 16 }]}
+            placeholder={t('auth.emailPlaceholder')}
+            placeholderTextColor={palette.textTertiary}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -80,11 +119,11 @@ export default function Login() {
           />
 
           {/* Password */}
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Password</Text>
+          <Text style={labelStyle}>{t('auth.password')}</Text>
           <TextInput
-            className="border border-gray-300 rounded-xl px-4 py-3 mb-2 text-base bg-gray-50"
-            placeholder="••••••••"
-            placeholderTextColor="#9CA3AF"
+            style={[inputStyle, { marginBottom: 8 }]}
+            placeholder={t('auth.passwordPlaceholder')}
+            placeholderTextColor={palette.textTertiary}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -94,8 +133,10 @@ export default function Login() {
 
           {/* Forgot password link */}
           <Link href="./forgot-password" asChild>
-            <TouchableOpacity className="self-end mb-6">
-              <Text className="text-indigo-600 text-sm font-medium">Forgot password?</Text>
+            <TouchableOpacity style={{ alignSelf: 'flex-end', marginBottom: 24 }}>
+              <Text style={{ color: accent, fontSize: 13, fontWeight: '500' }}>
+                {t('auth.forgotPassword')}
+              </Text>
             </TouchableOpacity>
           </Link>
 
@@ -103,20 +144,32 @@ export default function Login() {
           <TouchableOpacity
             onPress={handleLogin}
             disabled={loading}
-            className={`rounded-xl py-4 items-center ${loading ? 'bg-indigo-300' : 'bg-indigo-600'}`}>
+            style={{
+              height: 48,
+              backgroundColor: accent,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: loading ? 0.6 : 1,
+            }}>
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text className="text-white text-base font-semibold">Sign In</Text>
+              <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
+                {t('auth.signIn')}
+              </Text>
             )}
           </TouchableOpacity>
 
           {/* Signup link */}
-          <View className="flex-row justify-center mt-8">
-            <Text className="text-gray-500">Don't have an account? </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 32 }}>
+            <Text style={{ color: palette.textSecondary, fontSize: 15 }}>
+              {t('auth.noAccount')}{' '}
+            </Text>
             <Link href="./signup" asChild>
               <TouchableOpacity>
-                <Text className="text-indigo-600 font-semibold">Sign Up</Text>
+                <Text style={{ color: accent, fontSize: 15, fontWeight: '600' }}>
+                  {t('auth.signUp')}
+                </Text>
               </TouchableOpacity>
             </Link>
           </View>

@@ -1,270 +1,272 @@
-import { useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/context/ThemeContext';
+import { useSeed } from '@/context/SeedContext';
+import { useBirthData } from '@/context/BirthDataContext';
+import { useTasks } from '@/hooks/useTasks';
+import { MANTRAS_POOL, getDailyHoroscopeParams, sunSignFromDate } from '@/utils/horoscope';
 import { Fonts } from '@/constants/fonts';
+import { BackgroundGlyphs } from '@/components/BackgroundGlyphs';
+import { isoDate } from '@/utils/date';
 
-const today = new Date();
-const dayLabel = today.toLocaleDateString(undefined, {
-  weekday: 'long',
-  month: 'long',
-  day: 'numeric',
-});
-
-const HOROSCOPE_HEADLINE = 'The stars lean in your favor today.';
-const HOROSCOPE_BODY =
-  'Mercury sharpens your thinking and softens your speech, making this an unusually good day for the conversations you have been putting off. The Moon in Cancer asks you to lead with care. Trust the slow movements; nothing today rewards the rush.';
-
-const MANTRA = 'I move at the pace of my own knowing.';
-const MANTRA_NOTE =
-  'Repeat this morning and night. Let the rhythm of the words match the rhythm of your breath.';
-
-const initialTasks = [
-  { id: '1', title: 'Morning pages', time: '07:00', done: true },
-  { id: '2', title: 'Walk without your phone', time: '12:30', done: true },
-  { id: '3', title: 'Send the email you have been avoiding', time: '15:00', done: true },
-  { id: '4', title: 'Read for thirty minutes', time: '18:00', done: false },
-  { id: '5', title: 'Set tomorrow’s intention', time: '21:30', done: false },
-];
-
-const categories = [
-  {
-    key: 'love',
-    title: 'Love',
-    excerpt:
-      'A small honesty becomes a doorway. Speak the soft thing you almost kept to yourself.',
-  },
-  {
-    key: 'friends',
-    title: 'Friends',
-    excerpt:
-      'Old loyalties resurface. Let the conversation drift into territory you have not crossed in years.',
-  },
-  {
-    key: 'family',
-    title: 'Family',
-    excerpt:
-      'A reminder of where you come from arrives gently. Receive it without making it a verdict.',
-  },
-  {
-    key: 'career',
-    title: 'Career',
-    excerpt:
-      'You can see two moves ahead. Trust the long game and decline the urgency that does not belong to you.',
-  },
-];
+const CATEGORY_KEYS = ['love', 'friends', 'family', 'career'] as const;
 
 export default function Home() {
+  const { t, i18n } = useTranslation();
   const { palette, accent } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [tasks, setTasks] = useState(initialTasks);
+  const { seed } = useSeed();
+  const { dateOfBirth } = useBirthData();
 
-  const completed = tasks.filter((t) => t.done).length;
+  const todayISO = isoDate(new Date());
+  const { tasks, refresh, toggleTask } = useTasks(todayISO, todayISO);
 
-  const toggle = (id: string) =>
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
+
+  const dayLabel = useMemo(
+    () =>
+      new Date().toLocaleDateString(i18n.language, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+      }),
+    [i18n.language]
+  );
+
+  const sunSign = sunSignFromDate(dateOfBirth);
+
+  const params = useMemo(
+    () => (seed != null ? getDailyHoroscopeParams(seed, sunSign) : null),
+    [seed, sunSign]
+  );
+
+  const mantra = params != null ? MANTRAS_POOL[params.mantraIndex] : MANTRAS_POOL[0];
+
+  // Pseudo-distribute the three intensities across the four categories.
+  const intensityFor = (idx: number): number => {
+    if (!params) return 0;
+    const ring = [params.loveIntensity, params.careerIntensity, params.energyIntensity];
+    if (idx === 0) return params.loveIntensity;
+    if (idx === 3) return params.careerIntensity;
+    return ring[idx % 3];
+  };
+
+  const completed = tasks.filter((task) => task.done).length;
 
   const Divider = () => (
     <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 32 }} />
   );
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: palette.background }}
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 48 }}>
-      {/* Section 1 — Header */}
-      <View className="px-8">
-        <Text
-          style={{
-            fontSize: 11,
-            fontWeight: '500',
-            letterSpacing: 1.5,
-            textTransform: 'uppercase',
-            color: palette.textTertiary,
-            marginBottom: 16,
-          }}>
-          {dayLabel}
-        </Text>
-        <Text
-          style={{
-            fontFamily: Fonts.display,
-            fontSize: 32,
-            lineHeight: 38,
-            color: palette.textPrimary,
-            marginBottom: 24,
-          }}>
-          {HOROSCOPE_HEADLINE}
-        </Text>
-        <Text
-          style={{
-            fontSize: 15,
-            lineHeight: 24,
-            color: palette.textPrimary,
-          }}>
-          {HOROSCOPE_BODY}
-        </Text>
-      </View>
+    <View style={{ flex: 1, backgroundColor: palette.background }}>
+      <BackgroundGlyphs variant="home" />
+      <ScrollView
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: 48 }}>
+        <View className="px-8">
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: '500',
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              color: palette.textTertiary,
+              marginBottom: 16,
+            }}>
+            {dayLabel}
+          </Text>
+          <Text
+            style={{
+              fontFamily: Fonts.display,
+              fontSize: 32,
+              lineHeight: 38,
+              color: palette.textPrimary,
+              marginBottom: 24,
+            }}>
+            {t('home.headline')}
+          </Text>
+          <Text style={{ fontSize: 15, lineHeight: 24, color: palette.textPrimary }}>
+            {t('home.horoscopeBody')}
+          </Text>
+        </View>
 
-      <View className="px-8">
-        <Divider />
-      </View>
+        <View className="px-8">
+          <Divider />
+        </View>
 
-      {/* Section 2 — Mantra */}
-      <View className="px-8">
-        <Text
-          style={{
-            fontFamily: Fonts.bodyItalic,
-            fontSize: 24,
-            lineHeight: 32,
-            color: palette.textPrimary,
-            marginBottom: 12,
-          }}>
-          “{MANTRA}”
-        </Text>
-        <Text
-          style={{
-            fontSize: 15,
-            lineHeight: 24,
-            color: palette.textSecondary,
-          }}>
-          {MANTRA_NOTE}
-        </Text>
-      </View>
+        <View className="px-8">
+          <Text
+            style={{
+              fontFamily: Fonts.bodyItalic,
+              fontSize: 24,
+              lineHeight: 32,
+              color: palette.textPrimary,
+              marginBottom: 12,
+            }}>
+            “{mantra}”
+          </Text>
+          <Text style={{ fontSize: 15, lineHeight: 24, color: palette.textSecondary }}>
+            {t('home.mantraNote')}
+          </Text>
+        </View>
 
-      <View className="px-8">
-        <Divider />
-      </View>
+        <View className="px-8">
+          <Divider />
+        </View>
 
-      {/* Section 3 — Today's tasks */}
-      <View className="px-8">
-        <Text
-          style={{
-            fontFamily: Fonts.headingSemi,
-            fontSize: 18,
-            color: palette.textPrimary,
-          }}>
-          Today’s tasks
-        </Text>
-        <Text
-          style={{
-            fontSize: 13,
-            color: palette.textTertiary,
-            marginTop: 4,
-            marginBottom: 24,
-          }}>
-          {completed} of {tasks.length} completed
-        </Text>
-        {tasks.map((task, i) => (
-          <View key={task.id}>
-            {i > 0 && (
-              <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 16 }} />
-            )}
-            <Pressable
-              onPress={() => toggle(task.id)}
-              style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-              <View
-                style={{
-                  width: 18,
-                  height: 18,
-                  borderWidth: 1,
-                  borderColor: task.done ? accent : palette.border,
-                  backgroundColor: task.done ? accent : 'transparent',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginRight: 16,
-                  marginTop: 2,
-                }}>
-                {task.done && <Feather name="check" size={12} color="#FFFFFF" />}
-              </View>
-              <View style={{ flex: 1 }}>
-                <View>
+        <View className="px-8">
+          <Text
+            style={{
+              fontFamily: Fonts.headingSemi,
+              fontSize: 18,
+              color: palette.textPrimary,
+            }}>
+            {t('home.todaysTasks')}
+          </Text>
+          <Text
+            style={{
+              fontSize: 13,
+              color: palette.textTertiary,
+              marginTop: 4,
+              marginBottom: 24,
+            }}>
+            {t('home.tasksProgress', { done: completed, total: tasks.length })}
+          </Text>
+          {tasks.length === 0 && (
+            <Text style={{ fontSize: 13, color: palette.textTertiary }}>{t('home.emptyDay')}</Text>
+          )}
+          {tasks.map((task, i) => (
+            <View key={task.id}>
+              {i > 0 && (
+                <View
+                  style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 16 }}
+                />
+              )}
+              <Pressable
+                onPress={() => toggleTask(task.id)}
+                style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <View
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderWidth: 1,
+                    borderColor: task.done ? accent : palette.border,
+                    backgroundColor: task.done ? accent : 'transparent',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 16,
+                    marginTop: 2,
+                  }}>
+                  {task.done && <Feather name="check" size={12} color="#FFFFFF" />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View>
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        lineHeight: 20,
+                        color: task.done ? palette.textTertiary : palette.textPrimary,
+                      }}>
+                      {task.title}
+                    </Text>
+                    {task.done && (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          top: 10,
+                          left: 0,
+                          right: 0,
+                          height: 0.5,
+                          backgroundColor: palette.textTertiary,
+                        }}
+                      />
+                    )}
+                  </View>
                   <Text
                     style={{
-                      fontSize: 15,
-                      lineHeight: 20,
-                      color: task.done ? palette.textTertiary : palette.textPrimary,
+                      fontSize: 13,
+                      color: palette.textTertiary,
+                      marginTop: 4,
                     }}>
-                    {task.title}
+                    {task.due_time ? task.due_time.slice(0, 5) : t('planner.noTimeOption')}
                   </Text>
-                  {task.done && (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: 10,
-                        left: 0,
-                        right: 0,
-                        height: 0.5,
-                        backgroundColor: palette.textTertiary,
-                      }}
-                    />
-                  )}
                 </View>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    color: palette.textTertiary,
-                    marginTop: 4,
-                  }}>
-                  {task.time}
-                </Text>
-              </View>
-            </Pressable>
-          </View>
-        ))}
-      </View>
+              </Pressable>
+            </View>
+          ))}
+        </View>
 
-      <View className="px-8">
-        <Divider />
-      </View>
+        <View className="px-8">
+          <Divider />
+        </View>
 
-      {/* Section 4 — Horoscope categories */}
-      <View className="px-8">
-        <Text
-          style={{
-            fontFamily: Fonts.headingSemi,
-            fontSize: 18,
-            color: palette.textPrimary,
-            marginBottom: 8,
-          }}>
-          Your horoscope today
-        </Text>
-        {categories.map((c) => (
-          <View key={c.key}>
-            <View style={{ height: 0.5, backgroundColor: palette.border, marginTop: 24 }} />
-            <Pressable
-              onPress={() => router.push(`/horoscope/${c.key}` as never)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'flex-start',
-                paddingTop: 20,
-              }}>
-              <View style={{ flex: 1, paddingRight: 16 }}>
-                <Text
+        <View className="px-8">
+          <Text
+            style={{
+              fontFamily: Fonts.headingSemi,
+              fontSize: 18,
+              color: palette.textPrimary,
+              marginBottom: 8,
+            }}>
+            {t('home.yourHoroscope')}
+          </Text>
+          {CATEGORY_KEYS.map((key, i) => {
+            const intensity = intensityFor(i);
+            return (
+              <View key={key}>
+                <View style={{ height: 0.5, backgroundColor: palette.border, marginTop: 24 }} />
+                <Pressable
+                  onPress={() => router.push(`/horoscope/${key}` as never)}
                   style={{
-                    fontFamily: Fonts.headingSemi,
-                    fontSize: 18,
-                    color: palette.textPrimary,
-                    marginBottom: 8,
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                    paddingTop: 20,
                   }}>
-                  {c.title}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 15,
-                    lineHeight: 22,
-                    color: palette.textSecondary,
-                  }}>
-                  {c.excerpt}
-                </Text>
+                  <View style={{ flex: 1, paddingRight: 16 }}>
+                    <Text
+                      style={{
+                        fontFamily: Fonts.headingSemi,
+                        fontSize: 18,
+                        color: palette.textPrimary,
+                        marginBottom: 8,
+                      }}>
+                      {t(`home.categories.${key}`)}
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        lineHeight: 22,
+                        color: palette.textSecondary,
+                        marginBottom: 12,
+                      }}>
+                      {t(`home.excerpts.${key}`)}
+                    </Text>
+                    <View style={{ height: 4, backgroundColor: palette.border }}>
+                      <View
+                        style={{
+                          height: 4,
+                          width: `${intensity}%`,
+                          backgroundColor: accent,
+                        }}
+                      />
+                    </View>
+                  </View>
+                  <Text style={{ fontSize: 18, color: palette.textTertiary, marginTop: 2 }}>›</Text>
+                </Pressable>
               </View>
-              <Text style={{ fontSize: 18, color: palette.textTertiary, marginTop: 2 }}>›</Text>
-            </Pressable>
-          </View>
-        ))}
-      </View>
-    </ScrollView>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </View>
   );
 }

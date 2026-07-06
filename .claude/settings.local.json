@@ -3,7 +3,8 @@
     "allow": [
       "Bash(pnpm add *)",
       "Bash(npx --no-install tsc --noEmit)",
-      "Bash(pnpm lint *)"
+      "Bash(pnpm lint *)",
+      "Bash(pnpm install *)"
     ]
   }
 }

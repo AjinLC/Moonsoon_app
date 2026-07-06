@@ -1,17 +1,21 @@
 import '../global.css';
+import '../utils/i18n';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { AuthProvider, useSession } from '../context/AuthContext';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { BirthDataProvider, useBirthData } from '../context/BirthDataContext';
+import { PreferencesProvider } from '../context/PreferencesContext';
+import { SeedProvider } from '../context/SeedContext';
 
 function RootNavigator() {
   const { session, loading: authLoading } = useSession();
   const { onboardingComplete, loading: profileLoading } = useBirthData();
-  const { palette, accent } = useTheme();
+  const { palette, accent, effectiveMode } = useTheme();
   const segments = useSegments();
   const router = useRouter();
 
@@ -39,21 +43,33 @@ function RootNavigator() {
       <View
         className="flex-1 items-center justify-center"
         style={{ backgroundColor: palette.background }}>
+        <StatusBar style={effectiveMode === 'dark' ? 'light' : 'dark'} />
         <ActivityIndicator size="large" color={accent} />
       </View>
     );
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(onboarding)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="horoscope/[category]" />
-      <Stack.Screen name="tarot/[cardId]" />
-      <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-    </Stack>
+    <>
+      <StatusBar style={effectiveMode === 'dark' ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          animationDuration: 280,
+        }}>
+        <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="(onboarding)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="horoscope/[category]" />
+        <Stack.Screen name="tarot/[cardId]" />
+        <Stack.Screen name="tarot/chat" />
+        <Stack.Screen
+          name="paywall"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+      </Stack>
+    </>
   );
 }
 
@@ -73,9 +89,13 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AuthProvider>
         <BirthDataProvider>
-          <ThemeProvider>
-            <RootNavigator />
-          </ThemeProvider>
+          <PreferencesProvider>
+            <ThemeProvider>
+              <SeedProvider>
+                <RootNavigator />
+              </SeedProvider>
+            </ThemeProvider>
+          </PreferencesProvider>
         </BirthDataProvider>
       </AuthProvider>
     </SafeAreaProvider>

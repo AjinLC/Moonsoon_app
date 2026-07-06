@@ -10,9 +10,15 @@ import {
   ScrollView,
 } from 'react-native';
 import { Link } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../utils/supabase';
+import { useTheme } from '../../context/ThemeContext';
+import { Fonts } from '../../constants/fonts';
 
 export default function ForgotPassword() {
+  const { t } = useTranslation();
+  const { palette, accent } = useTheme();
+
   // ---- State ----
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
@@ -22,7 +28,7 @@ export default function ForgotPassword() {
   // ---- Submit handler ----
   const handleReset = async () => {
     if (!email.trim()) {
-      setError('Please enter your email address.');
+      setError(t('auth.enterEmail'));
       return;
     }
 
@@ -45,19 +51,47 @@ export default function ForgotPassword() {
     setSuccess(true);
   };
 
+  const ctaStyle = {
+    height: 48,
+    backgroundColor: accent,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  };
+
   // ---- Success state ----
   if (success) {
     return (
-      <View className="flex-1 bg-white justify-center px-8">
-        <Text className="text-3xl font-bold text-center mb-4">Email Sent</Text>
-        <Text className="text-base text-gray-500 text-center mb-8">
-          If an account exists for{' '}
-          <Text className="font-semibold text-gray-700">{email}</Text>, you'll receive a password
-          reset link shortly. Check your inbox (and spam folder).
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: palette.background,
+          justifyContent: 'center',
+          paddingHorizontal: 32,
+        }}>
+        <Text
+          style={{
+            fontFamily: Fonts.display,
+            fontSize: 32,
+            lineHeight: 38,
+            color: palette.textPrimary,
+            marginBottom: 16,
+          }}>
+          {t('auth.emailSentTitle')}
+        </Text>
+        <Text
+          style={{
+            fontSize: 15,
+            lineHeight: 22,
+            color: palette.textSecondary,
+            marginBottom: 32,
+          }}>
+          {t('auth.emailSentBody', { email })}
         </Text>
         <Link href="/(auth)/login" asChild>
-          <TouchableOpacity className="bg-indigo-600 rounded-xl py-4 items-center">
-            <Text className="text-white text-base font-semibold">Back to Sign In</Text>
+          <TouchableOpacity style={ctaStyle}>
+            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
+              {t('auth.backToSignIn')}
+            </Text>
           </TouchableOpacity>
         </Link>
       </View>
@@ -68,30 +102,63 @@ export default function ForgotPassword() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-white">
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled">
-        <View className="flex-1 justify-center px-8">
+      style={{ flex: 1, backgroundColor: palette.background }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 32 }}>
           {/* Header */}
-          <Text className="text-3xl font-bold text-center mb-2">Reset Password</Text>
-          <Text className="text-base text-gray-500 text-center mb-10">
-            Enter your email and we'll send you a reset link
+          <Text
+            style={{
+              fontFamily: Fonts.display,
+              fontSize: 32,
+              lineHeight: 38,
+              color: palette.textPrimary,
+              marginBottom: 8,
+            }}>
+            {t('auth.resetTitle')}
+          </Text>
+          <Text style={{ fontSize: 15, color: palette.textSecondary, marginBottom: 40 }}>
+            {t('auth.resetLead')}
           </Text>
 
           {/* Error banner */}
           {error ? (
-            <View className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
-              <Text className="text-red-700 text-sm">{error}</Text>
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: '#B4433A',
+                paddingHorizontal: 12,
+                paddingVertical: 12,
+                marginBottom: 16,
+              }}>
+              <Text style={{ color: '#B4433A', fontSize: 13 }}>{error}</Text>
             </View>
           ) : null}
 
           {/* Email */}
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Email</Text>
+          <Text
+            style={{
+              fontSize: 11,
+              fontWeight: '500',
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              color: palette.textTertiary,
+              marginBottom: 8,
+            }}>
+            {t('auth.email')}
+          </Text>
           <TextInput
-            className="border border-gray-300 rounded-xl px-4 py-3 mb-6 text-base bg-gray-50"
-            placeholder="you@example.com"
-            placeholderTextColor="#9CA3AF"
+            style={{
+              height: 48,
+              borderWidth: 1,
+              borderColor: palette.border,
+              backgroundColor: palette.surface,
+              paddingHorizontal: 12,
+              fontSize: 15,
+              color: palette.textPrimary,
+              marginBottom: 24,
+            }}
+            placeholder={t('auth.emailPlaceholder')}
+            placeholderTextColor={palette.textTertiary}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -104,19 +171,23 @@ export default function ForgotPassword() {
           <TouchableOpacity
             onPress={handleReset}
             disabled={loading}
-            className={`rounded-xl py-4 items-center ${loading ? 'bg-indigo-300' : 'bg-indigo-600'}`}>
+            style={[ctaStyle, { opacity: loading ? 0.6 : 1 }]}>
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text className="text-white text-base font-semibold">Send Reset Link</Text>
+              <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
+                {t('auth.sendResetLink')}
+              </Text>
             )}
           </TouchableOpacity>
 
           {/* Back to login */}
-          <View className="flex-row justify-center mt-8">
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 32 }}>
             <Link href="/(auth)/login" asChild>
               <TouchableOpacity>
-                <Text className="text-indigo-600 font-semibold">Back to Sign In</Text>
+                <Text style={{ color: accent, fontSize: 15, fontWeight: '600' }}>
+                  {t('auth.backToSignIn')}
+                </Text>
               </TouchableOpacity>
             </Link>
           </View>

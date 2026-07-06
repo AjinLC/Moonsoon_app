@@ -7,6 +7,8 @@ export interface BirthData {
   dateOfBirth: string | null; // YYYY-MM-DD
   timeOfBirth: string | null; // HH:MM:SS
   placeOfBirth: string | null;
+  birthLat: number | null;
+  birthLng: number | null;
   onboardingComplete: boolean;
 }
 
@@ -21,6 +23,8 @@ const empty: BirthData = {
   dateOfBirth: null,
   timeOfBirth: null,
   placeOfBirth: null,
+  birthLat: null,
+  birthLng: null,
   onboardingComplete: false,
 };
 
@@ -38,16 +42,29 @@ export function BirthDataProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     setLoading(true);
-    const { data: row } = await supabase
+    let { data: row } = await supabase
       .from('profiles')
-      .select('name, date_of_birth, time_of_birth, place_of_birth, onboarding_complete')
+      .select(
+        'name, date_of_birth, time_of_birth, place_of_birth, birth_lat, birth_lng, onboarding_complete'
+      )
       .eq('id', user.id)
       .single();
+    if (!row) {
+      // Fallback for a DB where migration_003 (birth_lat/birth_lng) has not run yet.
+      const legacy = await supabase
+        .from('profiles')
+        .select('name, date_of_birth, time_of_birth, place_of_birth, onboarding_complete')
+        .eq('id', user.id)
+        .single();
+      row = legacy.data as typeof row;
+    }
     setData({
       name: row?.name ?? null,
       dateOfBirth: row?.date_of_birth ?? null,
       timeOfBirth: row?.time_of_birth ?? null,
       placeOfBirth: row?.place_of_birth ?? null,
+      birthLat: row?.birth_lat ?? null,
+      birthLng: row?.birth_lng ?? null,
       onboardingComplete: !!row?.onboarding_complete,
     });
     setLoading(false);
@@ -64,6 +81,8 @@ export function BirthDataProvider({ children }: { children: React.ReactNode }) {
     if (patch.dateOfBirth !== undefined) dbPatch.date_of_birth = patch.dateOfBirth;
     if (patch.timeOfBirth !== undefined) dbPatch.time_of_birth = patch.timeOfBirth;
     if (patch.placeOfBirth !== undefined) dbPatch.place_of_birth = patch.placeOfBirth;
+    if (patch.birthLat !== undefined) dbPatch.birth_lat = patch.birthLat;
+    if (patch.birthLng !== undefined) dbPatch.birth_lng = patch.birthLng;
     if (patch.onboardingComplete !== undefined)
       dbPatch.onboarding_complete = patch.onboardingComplete;
 

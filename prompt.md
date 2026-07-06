@@ -1,638 +1,739 @@
-# prompt.md — Moonsoon App Build Instructions
+# Moonsoon — Prompt Claude Code
 
-This file is for Claude Code. Read it fully before writing a single line of code.
-Reference: https://www.figma.com/design/SS0JEdwGJUluCuZ7BMwlnX/Moonsoon-%E2%80%93-UI-Design-System---Screens
-
----
-
-## What we are building
-
-**Moonsoon** is a minimal, editorial astrology and wellness app. It gives users a daily horoscope, a planner tied to astrological energy, a daily tarot card, and their full birth chart. The UI is inspired by print editorial design — high whitespace, Pavot headings, sharp corners everywhere, and a single accent color the user picks.
+Ce fichier décrit les modifications à implémenter dans l'ordre. Chaque tâche est autonome et testable séparément. Ne modifier que les fichiers indiqués. Ne jamais casser les comportements existants décrits dans `ETAT-DES-LIEUX.md`.
 
 ---
 
-## Design system (extract from Figma `🎨 Design System` page)
+## Règles globales (à respecter sur toute la codebase)
 
-### Colors
-
-**Light theme (default)**
-
-| Token | Hex |
-|---|---|
-| Background | `#F7F7F7` |
-| Surface | `#F8F8F8` |
-| Border | `#E5E5E5` |
-| Text Primary | `#000000` |
-| Text Secondary | `#666666` |
-| Text Tertiary | `#999999` |
-
-**Dark theme**
-
-| Token | Hex |
-|---|---|
-| Background | `#0A0A0A` |
-| Surface | `#141414` |
-| Border | `#2A2A2A` |
-| Text Primary | `#FFFFFF` |
-| Text Secondary | `#999999` |
-| Text Tertiary | `#666666` |
-
-**Accent (user-selectable, default Indigo)**
-
-| Name | Hex |
-|---|---|
-| Indigo (default) | `#4F46E5` |
-| Sage | `#6B8F71` |
-| Dusty Rose | `#C4727F` |
-| Amber | `#D4A843` |
-
-The accent color is used **only** for: active tab indicator, progress bars, primary CTA buttons, and toggle-on states. Nowhere else.
-
-### Typography
-
-**Pavot** is a custom local font stored in `moonsoon-app/assets/fonts/`. It is used for all headings. **Inter** (system font, via NativeWind) is used for all body text. Do **not** install any Google Fonts package — the font is already in the repo.
-
-| Scale | Font | Size | Weight |
-|---|---|---|---|
-| Display | Pavot | 32px | Bold |
-| H2 | Pavot | 24px | Bold |
-| H3 | Pavot | 18px | SemiBold |
-| Body | Inter | 15px | Regular |
-| Body Small | Inter | 13px | Regular |
-| Caption | Inter | 11px | Medium |
-
-**Pavot weight → file mapping** — before writing any font code, run `ls moonsoon-app/assets/fonts/` to confirm the exact filenames. The naming convention is `Pavot-{Weight}.otf`. Map weights to files like this (adjust if filenames differ):
-
-| Weight needed | Expected filename |
-|---|---|
-| Bold (Display, H2) | `Pavot-Bold.otf` |
-| SemiBold (H3) | `Pavot-SemiBold.otf` or `Pavot-Medium.otf` |
-| Regular | `Pavot-Regular.otf` or `Pavot-Light.otf` |
-| Italic | `Pavot-Italic.otf` or `Pavot-LightItalic.otf` |
-
-If a weight doesn't have a dedicated file, use the nearest available weight and note it in a code comment.
-
-### Design rules — these are non-negotiable
-
-- **All corners: 0px radius** — sharp everywhere, no `rounded-` classes except on toggle/pill controls
-- **Dividers: 0.5px lines** using border color — use `border-b` with `border-[0.5px]` and `borderColor`
-- **Spacing: 8px grid** — use multiples of 2 in Tailwind (`p-2`, `p-4`, `p-6`, `p-8`)
-- **No emojis** — use thin-line icon text or Expo vector icons only
-- **High whitespace** — generous vertical padding between sections, never feel cramped
-- **Transitions: 300–500ms ease** — all opacity and scale animations use this timing
-- **Accent only on active/CTA** — do not use accent for text, backgrounds, or decorative use
-- **Horizontal padding: 32px** from screen edge — use `px-8` consistently
+- **Zéro coins arrondis** sauf les pill toggles 40×22 déjà en place
+- **Pas d'emojis** dans l'UI
+- **Grille 8px** — tous les spacings sont multiples de 4 ou 8
+- **Padding horizontal 32px** (`px-8`) sur tous les écrans
+- **Accent color** uniquement sur éléments actifs et CTA — jamais décoratif
+- **Dividers 0.5px** en border color du thème
+- **Fonts** : Pavot pour les headings, Inter (système) pour le body
+- **Animations** 300–500ms, easing `ease-in-out`
+- **TypeScript strict** — `npx tsc --noEmit` doit rester clean après chaque tâche
 
 ---
 
-## App architecture
+## TASK 1 — Système de seed déterministe
 
-### Route structure to implement
+### Objectif
 
-```
-app/
-├── _layout.tsx            # already done — auth redirect
-├── (auth)/
-│   ├── _layout.tsx        # already done
-│   ├── login.tsx          # already done
-│   ├── signup.tsx         # already done
-│   └── forgot-password.tsx # already done
-├── (onboarding)/
-│   ├── _layout.tsx        # NEW — headerless Stack
-│   ├── splash.tsx         # NEW
-│   ├── birth-data.tsx     # NEW
-│   └── preferences.tsx    # NEW
-├── (tabs)/
-│   ├── _layout.tsx        # UPDATE — new tab bar + icons
-│   ├── index.tsx          # UPDATE — full Home screen
-│   ├── planner.tsx        # NEW — rename from profile for now
-│   ├── tarot.tsx          # NEW
-│   └── profile.tsx        # UPDATE — full Profile screen
-└── horoscope/[category].tsx  # NEW — detail view
-```
+Chaque utilisateur reçoit un tirage tarot et un horoscope **stables pour la journée**. La seed change chaque jour et varie entre utilisateurs. Elle ne doit jamais changer lors d'une réouverture de l'app dans la même journée.
 
-### Auth + onboarding flow
+### Fichiers à créer
 
-After first sign-up, redirect to `/(onboarding)/splash` instead of `/(tabs)`. Track whether onboarding is complete in Supabase (a `profiles` table with `onboarding_complete: boolean`). If `onboarding_complete = true`, skip onboarding. Update `_layout.tsx` to check this.
+#### `moonsoon-app/utils/prng.ts`
 
-### State management
-
-Use React Context for:
-- `ThemeContext` — light/dark + accent color, persisted to Supabase `profiles`
-- `BirthDataContext` — date/time/place of birth, fetched from Supabase `profiles`
-
----
-
-## Supabase schema
-
-Create this table in Supabase before writing any data-fetching code:
-
-```sql
-create table public.profiles (
-  id uuid references auth.users on delete cascade primary key,
-  name text,
-  date_of_birth date,
-  time_of_birth time,
-  place_of_birth text,
-  onboarding_complete boolean default false,
-  accent_color text default 'indigo',
-  theme text default 'light',
-  focus_areas text[] default '{}',
-  notifications_mantra boolean default true,
-  notifications_horoscope boolean default true,
-  created_at timestamptz default now()
-);
-
-alter table public.profiles enable row level security;
-create policy "Users can read/write own profile"
-  on public.profiles for all
-  using (auth.uid() = id)
-  with check (auth.uid() = id);
-```
-
-Create a trigger to auto-insert a profile row on new sign-up:
-
-```sql
-create function public.handle_new_user()
-returns trigger as $$
-begin
-  insert into public.profiles (id)
-  values (new.id);
-  return new;
-end;
-$$ language plpgsql security definer;
-
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
-```
-
----
-
-## Screen-by-screen build instructions
-
-Work in this order. Each section is a separate task.
-
----
-
-### TASK 1 — Tab bar (`app/(tabs)/_layout.tsx`)
-
-Replace the current placeholder tab layout with the real one.
-
-**4 tabs:**
-
-| Tab | Route | Label | Icon |
-|---|---|---|---|
-| Home | `index` | Home | `Feather: home` |
-| Planner | `planner` | Planner | `Feather: calendar` |
-| Tarot | `tarot` | Tarot | `Feather: layers` |
-| Profile | `profile` | Profile | `Feather: user` |
-
-**Tab bar styling:**
-- Background: Surface color
-- Top border: 0.5px, Border color
-- No shadow/elevation
-- Tab labels: Caption scale (11px Medium), all lowercase
-- Active indicator: 2px wide, 40px wide, accent color, sits at top of tab bar (not bottom)
-- Active label color: accent. Inactive: Text Tertiary
-- No tab bar icons in the Figma — use text labels only, or very minimal Feather icons at 20px if needed
-
-```tsx
-// Key styling for tab bar
-tabBarStyle: {
-  borderTopWidth: 0.5,
-  borderTopColor: '#E5E5E5',
-  elevation: 0,
-  shadowOpacity: 0,
-  height: 70,
-  paddingBottom: 0,
-}
-```
-
----
-
-### TASK 2 — Onboarding: Splash (`app/(onboarding)/splash.tsx`)
-
-**Design (Figma node `37:2`):**
-- Full-screen, dark background (`#000` or very near-black)
-- Centered content
-- A thin cross/plus symbol (two 0.5px rectangles, one vertical 120px tall, one horizontal 100px wide, both centered)
-- App name "moonsoon" — Display scale, Pavot, centered
-- Tagline "align with the stars" — Body scale, Inter, Text Secondary color, centered
-- No buttons — auto-advance after 2 seconds or tap anywhere
-
-**Behavior:** After the splash auto-advances, navigate to `/(onboarding)/birth-data`.
-
----
-
-### TASK 3 — Onboarding: Birth Data (`app/(onboarding)/birth-data.tsx`)
-
-**Design (Figma node `37:8`):**
-
-Three field groups, each with this pattern:
-1. 11px caption label above field
-2. 0.5px divider above group
-3. 48px tall input box (0px radius, border color border, surface background)
-4. Body Small helper text below in Text Tertiary
-
-Fields:
-- **Date of birth** — placeholder `DD / MM / YYYY` — use a date picker (DateTimePicker from `expo`) on tap
-- **Time of birth** — placeholder `HH : MM` — time picker on tap, with note: "Check your birth certificate if you can."
-- **Place of birth** — placeholder `City, Country` — text input with autocomplete (use a simple TextInput for now, wire up Google Places later)
-
-Bottom of screen:
-- Primary CTA button: "Calculate my chart" — full width, 48px tall, **accent color** background, 0px radius
-- Text link below: "Skip for now" — Text Secondary, centered
-
-On submit: save to Supabase `profiles`, navigate to `/(onboarding)/preferences`.
-
----
-
-### TASK 4 — Onboarding: Preferences (`app/(onboarding)/preferences.tsx`)
-
-**Design (Figma node `37:32`):**
-
-**Focus areas** section — 2-column grid of toggle tiles:
-- Health & Wellness, Career & Finance, Spiritual Growth, Love & Relationships, Creativity, Learning
-- Each tile: 155px wide, 56px tall, 0px radius, Border color border
-- Selected state: Border color becomes accent, label becomes accent
-- Multi-select allowed
-
-**Notifications** section — 11px section header "NOTIFICATIONS" in Text Tertiary uppercase
-- Two toggle rows: "Daily mantra reminders" and "Horoscope updates"
-- Each row: label in Body, description in Body Small (Text Tertiary), custom toggle on the right
-- Toggle: 40×22px pill (this is the only rounded shape in the app — 11px radius). Off = Border color. On = Accent color. White 18×18 circle inside.
-
-Bottom CTA: "Get started" — same style as Birth Data CTA.
-
-On submit: set `onboarding_complete = true` in Supabase, navigate to `/(tabs)`.
-
----
-
-### TASK 5 — Home screen (`app/(tabs)/index.tsx`)
-
-**Design (Figma node `31:2`):** Full scrollable screen.
-
-**Section 1 — Header**
-- Small caption at top: day + date (e.g., "Tuesday, March 18") in Text Tertiary, Caption scale
-- Display heading: today's reading headline (e.g., "The stars lean in your favor today.") — Pavot, 32px bold
-- Body text: 4–5 sentence horoscope paragraph — Inter 15px
-
-**Section 2 — Today's Mantra**
-- No section label. Directly after a 0.5px divider.
-- Mantra text: H2 scale, Pavot italic, Text Primary
-- Explanation below in Body, Text Secondary
-
-**Section 3 — Today's tasks**
-- H3 label "Today's tasks" + Body Small count (e.g., "3 of 5 completed") below it
-- Task list items:
-  - 18×18 checkbox (0px radius, border = Border color). Checked state: accent fill, white checkmark.
-  - Task name in Body, Text Primary. Completed = Text Tertiary + strikethrough line (a 0.5px horizontal rectangle over the text, same width as text).
-  - Time subtitle in Body Small, Text Tertiary
-  - 0.5px separator between each task
-
-**Section 4 — Your horoscope today**
-- H3 label
-- Four categories: Love, Friends, Family, Career
-- Each row: category name in H3 (Pavot 18px SemiBold), 2–3 sentence excerpt in Body below, `>` text link on the right
-- 0.5px separator above each category
-- Tapping `>` navigates to `app/horoscope/[category]`
-
----
-
-### TASK 6 — Horoscope detail (`app/horoscope/[category].tsx`)
-
-**Design (Figma node `32:2` — "Horoscope Detail – Love"):**
-
-- `< Back` text link at top left (not a button, just `Text` + `router.back()`)
-- Category title: Display scale, Pavot
-- Date in Caption, Text Tertiary, uppercase
-- 0.5px divider
-- Long-form reading text in Body, Text Primary — 2–4 paragraphs
-- 0.5px divider
-- Section header "WHERE THIS COMES FROM" — Caption, uppercase, Text Tertiary
-- Intro sentence in Body Small
-- Then 2–3 "aspects" — each has:
-  - Aspect name in H3 (e.g., "Venus trine Moon")
-  - 2–3 paragraph explanation in Body
-  - 0.5px divider between aspects
-- Section header "LINKED MANTRA" — Caption, uppercase
-- Mantra text in H2, Pavot
-
----
-
-### TASK 7 — Planner: Calendar tab (`app/(tabs)/planner.tsx`)
-
-**Design (Figma node `33:2`):**
-
-**Two sub-tabs at top:**
-- "Calendar" and "Goals" rendered as text labels, not `<Tabs>`
-- Active underline: 2px tall, 70px wide, accent color, sits directly below active label
-- Implemented as local `useState` toggling between two views
-
-**Calendar sub-tab:**
-
-*Week strip:*
-- Month + nav arrows: `< March 2025 >` — H3, Text Primary
-- Day headers row: M T W T F S S — Caption, Text Tertiary
-- Date row: just the numbers — Body Small, Text Primary
-- Selected date: 24×24 accent-colored background, white text, 0px radius
-- Dots below dates that have events: 4×4 accent-colored square (0px radius)
-
-*Time grid (below selected day label):*
-- Left column: hour labels in Caption, Text Tertiary, right-aligned
-- 0.5px horizontal lines at each hour
-- Event blocks: full-width rectangles (0px radius), Surface background, border color border, with a 3px left accent-color bar
-- Event title in Body weight 500, event duration in Body Small, Text Tertiary
-
-*"No set time" section:*
-- Divider + label "No set time" in H3
-- Helper text in Body Small, Text Tertiary
-- Unscheduled tasks listed: each prefixed with `=` symbol (drag handle placeholder) in Text Tertiary, task name in Body
-
-*"+ Add task" text link:* Body, accent color
-
-**Goals sub-tab:**
-
-See TASK 8.
-
----
-
-### TASK 8 — Planner: Goals tab
-
-**Design (Figma node `33:112`):**
-
-**Time scope sub-tabs:** "This week", "This month", "This year" — same pattern as Calendar/Goals tabs above.
-
-**Goal items** (within selected time scope):
-- Goal text: H3, Pavot — the goal statement in quotes-style prose
-- Supporting context: Body Small, Text Tertiary — 2–3 sentences of coaching text
-- Progress bar: 280px wide, 4px tall, 0px radius. Background = Border color. Fill = accent color. Width set by progress ratio.
-- Progress count on the right: Body Small, Text Secondary (e.g., "5/7")
-- Linked task below: Caption "Today: [task name]" in Text Tertiary
-- 0.5px divider between goals
-
-`+ Add a new goal` text link at the bottom.
-
----
-
-### TASK 9 — Tarot: Pre-reveal (`app/(tabs)/tarot.tsx`)
-
-**Design (Figma node `35:2`):**
-
-**Card area:**
-- 200×320 card face-down: Border color rectangle, 0px radius
-- Inside: inner rectangle (172×292) with a thin cross symbol (same 0.5px lines as splash)
-- Centered text below card: "Draw today's card" — H3, Text Secondary
-
-**Tap interaction:**
-- When user taps the card, animate it flipping (use `react-native-reanimated` rotateY 0→180deg, 400ms ease)
-- After flip, navigate to the Revealed state (or render it inline below)
-
-**Recent readings list:**
-- Section header: "Recent readings" H3 + "Your past draws and what they revealed." Body Small
-- Each row: card name (Body, Text Primary), keywords subtitle (Body Small, Text Tertiary), date on right (Body Small, Text Tertiary), `>` link
-- 0.5px dividers between rows
-
----
-
-### TASK 10 — Tarot: Revealed (`app/tarot/[cardId].tsx` or inline state)
-
-**Design (Figma node `35:46`):**
-
-- `< Back` text link
-- 200×300 card revealed: filled rectangle, accent color background, card title centered in white
-  - Roman numeral at top (e.g., "XVIII") — Caption
-  - Circular symbol in center (two ellipses)
-  - Card name centered below (e.g., "The Moon") — H2, white
-  - Keywords below (e.g., "Intuition / Illusion / Subconscious") — Body Small, white at 70% opacity
-- Section header "YOUR READING" — Caption, Text Tertiary, uppercase, after a 0.5px divider
-- Long reading in Body (3–4 paragraphs)
-- Section header "ASTROLOGICAL CONTEXT" — same pattern, with long body text
-- Section header "ABOUT THIS CARD" — same pattern
-- "Share reading" text link — Body, accent color, right-aligned
-
----
-
-### TASK 11 — Profile: Your Chart tab (`app/(tabs)/profile.tsx`)
-
-**Design (Figma node `36:2`):**
-
-**Two sub-tabs:** "Your chart" and "Settings" — same pattern as Planner
-
-**Your chart sub-tab:**
-
-- 0.5px divider under tabs
-- Section header "YOUR BIRTH CHART" — Caption, uppercase, Text Tertiary
-- Birth details (e.g., "Born March 12, 1996 at 3:45 AM in Paris, France.") — Body, Text Primary
-- 0.5px divider
-- Section header "THE BIG THREE" — Caption, uppercase
-- Three items (Sun, Moon, Rising):
-  - Sign title: H2, Pavot (e.g., "Sun in Pisces")
-  - Long explanation: Body, Text Primary — 3–4 paragraphs of real astrological description
-  - 0.5px divider between items
-- Section header "HOUSES & PLACEMENTS" — Caption, uppercase
-- Intro sentence in Body Small
-- House items: each has house title (Body 500 weight, e.g., "1st House — Leo") + description (Body Small, Text Tertiary)
-- 0.5px divider between house items
-
----
-
-### TASK 12 — Profile: Settings tab
-
-**Design (Figma node `36:45`):**
-
-**Section: ACCOUNT** (Caption, uppercase)
-- Each row: label (Caption, Text Tertiary above), current value (Body, Text Primary), "Edit" text link (Body Small, accent color) right-aligned
-- Fields: Name, Email, Date of birth, Time of birth, Place of birth
-- 0.5px divider between rows
-
-**Section: PREFERENCES** (Caption, uppercase)
-- Each row: label (Body, Text Primary), current value (Body Small, Text Tertiary), `>` right arrow
-- Settings: Accent color, Theme, Daily notifications, Mantra reminders (time), Horoscope detail level
-- Each taps into a sub-screen or modal
-
-**Subscription row:**
-- Label "Subscription", value "Free plan", `>` arrow
-- Tapping → Paywall screen
-
-**Danger zone rows:**
-- "Sign out" — Body, Text Primary. Calls `supabase.auth.signOut()`
-- "Delete account" — Body, Text Primary (do not color red in the design — the design keeps it neutral)
-- 0.5px dividers after each
-
----
-
-### TASK 13 — Paywall (`app/paywall.tsx`, presented as modal)
-
-**Design (Figma node `39:2`):**
-
-- `X` close button top right (Body, Text Primary)
-- "PREMIUM" — Caption, uppercase, Text Tertiary, centered
-- Headline: "Unlock your full alignment." — Display scale, Pavot, centered
-- Subtext: Body, Text Secondary, centered
-- 0.5px divider
-- **Teaser reading section:** blurred/faded body text with a frosted overlay — use `expo-blur` `BlurView` over a body text block. This previews a premium reading.
-- 0.5px divider
-- "What you get" — H3
-- 4 feature rows, each: `— Feature title` in Body 500 weight, then description in Body Small Text Tertiary, indented 20px
-- 0.5px divider
-- **Pricing tiles (2 side by side):**
-  - "Monthly" + "$4.99 / month" — each tile: 155px wide, 76px tall, 0px radius
-  - "Yearly — save 40%" + "$2.99 / month"
-  - Selected tile: accent color border (1px). Unselected: Border color.
-  - Default: Yearly selected
-- Primary CTA: "Start free trial" — full width, 48px, accent background, 0px radius
-- Caption below: "7-day free trial, cancel anytime" — Caption, Text Tertiary, centered
-
----
-
-## Coding conventions
-
-### NativeWind / Tailwind classes to know
-
-```tsx
-// Sharp corners — always use this, never rounded-*
-className="rounded-none"
-
-// 0.5px divider line
-<View className="h-[0.5px] bg-[#E5E5E5]" />
-
-// Accent color button (use inline style for dynamic accent)
-<TouchableOpacity style={{ backgroundColor: accentColor }} className="py-3 items-center">
-
-// Caption uppercase
-className="text-[11px] font-medium tracking-widest uppercase text-[#999999]"
-
-// Pavot heading — use inline style, not className, for custom fonts
-style={{ fontFamily: 'Pavot-Bold', fontSize: 32 }}
-
-// Body text
-className="text-[15px] leading-6 text-[#000000]"
-
-// Body Small
-className="text-[13px] leading-5 text-[#666666]"
-
-// Left accent bar on calendar events
-<View style={{ backgroundColor: accentColor }} className="w-[3px] h-full absolute left-0" />
-```
-
-### Font setup — Pavot (local OTF)
-
-`expo-font` is already a dependency. Load Pavot in `app/_layout.tsx` using `useFonts`:
-
-```tsx
-import { useFonts } from 'expo-font';
-
-// Inside RootLayout (before return):
-const [fontsLoaded] = useFonts({
-  'Pavot-Bold': require('../assets/fonts/Pavot-Bold.otf'),
-  'Pavot-SemiBold': require('../assets/fonts/Pavot-SemiBold.otf'), // use Medium if SemiBold doesn't exist
-  'Pavot-Regular': require('../assets/fonts/Pavot-Regular.otf'),   // use Light if Regular doesn't exist
-  'Pavot-Italic': require('../assets/fonts/Pavot-Italic.otf'),     // use LightItalic if needed
-});
-
-if (!fontsLoaded) {
-  return null; // or a SplashScreen — do not render until fonts are ready
-}
-```
-
-**Important:** Run `ls moonsoon-app/assets/fonts/` first and adjust the filenames above to match exactly what exists. Font names in `require()` are case-sensitive on Android.
-
-Do **not** install `@expo-google-fonts/playfair-display` or any other font package.
-
-Create a `constants/fonts.ts` file to keep font family strings DRY:
+Implémenter un générateur pseudo-aléatoire **Mulberry32** — reproductible, sans dépendance, 32 bits :
 
 ```ts
-// moonsoon-app/constants/fonts.ts
-export const Fonts = {
-  display: 'Pavot-Bold',
-  heading: 'Pavot-Bold',
-  headingSemi: 'Pavot-SemiBold',
-  bodyItalic: 'Pavot-Italic',
-  // Inter variants are handled by NativeWind font-weight classes
-} as const;
+export function createPRNG(seed: number): { next: () => number } {
+  let s = seed
+  return {
+    next() {
+      s |= 0; s = s + 0x6D2B79F5 | 0
+      let t = Math.imul(s ^ s >>> 15, 1 | s)
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t
+      return ((t ^ t >>> 14) >>> 0) / 4294967296
+    }
+  }
+}
 ```
 
-Use like this in components:
+#### `moonsoon-app/utils/seed.ts`
 
-```tsx
-import { Fonts } from '@/constants/fonts';
+```ts
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
-// Display heading
-<Text style={{ fontFamily: Fonts.display, fontSize: 32 }}>
-  The stars lean in your favor today.
-</Text>
+export type SeedSource = 'birth' | 'location' | 'random'
 
-// H2
-<Text style={{ fontFamily: Fonts.heading, fontSize: 24 }}>
-  Your daily alignment
-</Text>
+export interface SeedResult {
+  seed: number
+  source: SeedSource
+}
 
-// H3
-<Text style={{ fontFamily: Fonts.headingSemi, fontSize: 18 }}>
-  Love, Friends, Family, Career
-</Text>
+export async function computeDailySeed(params: {
+  userId: string
+  today: string        // "YYYY-MM-DD"
+  birthDate?: string   // "YYYY-MM-DD"
+  birthTime?: string   // "HH:MM"
+  birthPlace?: string
+  lat?: number
+  lng?: number
+}): Promise<SeedResult>
 ```
 
-Never use Pavot for body text, captions, labels, or UI chrome — those stay on Inter via NativeWind.
+Logique de priorité :
 
-### Reanimated for card flip (Tarot)
+1. **Birth data complète** (`birthDate` + `birthTime` + `birthPlace` tous non-vides) → hash de `userId + today + birthDate + birthTime + birthPlace`, source = `'birth'`
+2. **Localisation** (`lat` et `lng` non-null) → hash de `userId + today + lat.toFixed(2) + lng.toFixed(2)`, source = `'location'`
+3. **Fallback random stable** → lire `AsyncStorage` clé `seed_fallback_{userId}_{today}`. Si absent, générer un `crypto.randomUUID()`, le stocker, puis hasher `userId + today + uuid`. Source = `'random'`
 
-```tsx
-// 400ms card flip using react-native-reanimated v4
-const rotation = useSharedValue(0);
-const animatedStyle = useAnimatedStyle(() => ({
-  transform: [{ rotateY: `${rotation.value}deg` }],
-}));
-const flip = () => {
-  rotation.value = withTiming(180, { duration: 400, easing: Easing.out(Easing.ease) });
-};
+Hash à utiliser — **djb2**, zéro dépendance :
+```ts
+function djb2(str: string): number {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) ^ str.charCodeAt(i)
+    hash = hash & hash
+  }
+  return Math.abs(hash)
+}
 ```
 
-### Data fetching pattern
+#### `moonsoon-app/utils/tarot.ts`
 
-Use a thin wrapper around Supabase for all data. Keep it co-located next to the screen that uses it for now — don't over-engineer a service layer until there are 3+ screens using the same data.
+Deck complet 78 cartes (22 Major + 56 Minor Arcana). Chaque carte :
+```ts
+interface TarotCard {
+  id: string          // "major-00", "wands-01", etc.
+  name: string
+  arcana: 'major' | 'minor'
+  suit?: 'wands' | 'cups' | 'swords' | 'pentacles'
+  keywords: string[]  // 3 mots-clés positifs
+  keywordsReversed: string[]  // 3 mots-clés renversés
+  description: string  // 1 phrase, ton neutre
+}
+```
 
+Fonction de tirage avec Fisher-Yates seedé :
+```ts
+export function drawCards(seed: number, n = 3, allowReversed = true): DrawnCard[]
+```
+
+`DrawnCard` étend `TarotCard` avec `{ reversed: boolean }`.
+
+#### `moonsoon-app/utils/horoscope.ts`
+
+Pools statiques :
+- `MANTRAS_POOL` : 30 mantras courts (5–8 mots), ton introspectif, pas de spiritualité explicite
+- `ASPECTS_POOL` : 20 aspects planétaires ("Moon trine Venus", "Mars square Saturn", etc.)
+
+Fonction :
+```ts
+export function getDailyHoroscopeParams(seed: number, sunSign: string): {
+  loveIntensity: number      // 0–100
+  careerIntensity: number
+  energyIntensity: number
+  luckyNumber: number        // 1–99
+  aspectIndex: number
+  mantraIndex: number
+}
+```
+
+Décaler le seed par signe pour éviter que tous les signes aient les mêmes valeurs le même jour :
+```ts
+const SIGN_OFFSETS: Record<string, number> = {
+  aries: 1, taurus: 2, gemini: 3, cancer: 4,
+  leo: 5, virgo: 6, libra: 7, scorpio: 8,
+  sagittarius: 9, capricorn: 10, aquarius: 11, pisces: 12,
+}
+const rng = createPRNG(seed + (SIGN_OFFSETS[sunSign.toLowerCase()] ?? 0))
+```
+
+#### `moonsoon-app/context/SeedContext.tsx`
+
+```ts
+interface SeedContextType {
+  seed: number | null
+  seedSource: SeedSource | 'loading'
+  refreshSeed: () => Promise<void>
+}
+```
+
+Cycle de vie du provider :
+1. Lire `today = new Date().toISOString().slice(0, 10)`
+2. Récupérer birth data depuis `BirthDataContext`
+3. Si birth data incomplète → tenter `expo-location` (`requestForegroundPermissionsAsync`). Si refus ou erreur → passer au fallback
+4. Appeler `computeDailySeed` et stocker résultat
+5. Écouter `AppState` : si l'app passe en foreground et que `today` a changé, recalculer
+
+### Fichiers à modifier
+
+**`moonsoon-app/app/_layout.tsx`**
+
+Ajouter `SeedProvider` dans la hiérarchie, après `BirthDataProvider` :
 ```tsx
-// Example — fetch today's horoscope from profiles table
-const { data, error } = await supabase
-  .from('profiles')
-  .select('*')
-  .eq('id', session.user.id)
-  .single();
+<AuthProvider>
+  <BirthDataProvider>
+    <ThemeProvider>
+      <SeedProvider>
+        <RootNavigator />
+      </SeedProvider>
+    </ThemeProvider>
+  </BirthDataProvider>
+</AuthProvider>
+```
+
+**`moonsoon-app/app/(tabs)/tarot.tsx`**
+
+Remplacer le tirage hardcodé :
+- Appeler `useSeed()` pour obtenir `seed`
+- Si `seed` est null, afficher un `ActivityIndicator` à la place de la carte
+- Appeler `drawCards(seed, 3)` pour les 3 cartes du tirage du jour
+- Passer les cartes tirées à `[cardId]` via les search params d'Expo Router
+
+**`moonsoon-app/app/tarot/[cardId].tsx`**
+
+- Lire la carte depuis les params passés par le tirage seedé
+- Conserver les 4 cartes hardcodées comme fallback si params absents
+
+**`moonsoon-app/app/(tabs)/index.tsx`**
+
+- Appeler `getDailyHoroscopeParams(seed, sunSign)` (sunSign depuis BirthDataContext, défaut `'aries'` si absent)
+- Utiliser `loveIntensity`, `careerIntensity`, `energyIntensity` pour afficher une barre de progression ou une indication visuelle sous chaque catégorie horoscope (4px de hauteur, couleur accent, width = `${intensity}%`)
+- Utiliser `MANTRAS_POOL[mantraIndex]` pour le mantra du jour
+
+**`moonsoon-app/app/horoscope/[category].tsx`**
+
+- Afficher `ASPECTS_POOL[aspectIndex]` dans la section "Astrological context"
+- Afficher `luckyNumber` dans un champ "Lucky number"
+
+**`moonsoon-app/app/(tabs)/profile.tsx` — section Settings**
+
+Ajouter une ligne read-only dans la section Preferences :
+```
+Reading source     [birth chart / your location / randomised]
+```
+Valeur depuis `useSeed().seedSource`. Pas de chevron, pas d'action au tap.
+
+### Dépendance à ajouter
+
+```bash
+pnpm add expo-location
+```
+
+Dans `app.json`, ajouter dans `plugins` :
+```json
+["expo-location", {
+  "locationWhenInUsePermission": "Used to personalise your daily reading when birth data is unavailable."
+}]
 ```
 
 ---
 
-## Build order summary
+## TASK 2 — Dark mode avec détection automatique
 
-Start with the highest-leverage, most visible items first:
+### Objectif
 
-1. Supabase schema + trigger (15 min)
-2. Tab bar layout with correct labels + active indicator (TASK 1)
-3. Home screen (TASK 5) — this is what users see first every day
-4. Onboarding: Splash → Birth Data → Preferences (TASKS 2–4)
-5. Profile: Your Chart + Settings (TASKS 11–12)
-6. Planner (TASKS 7–8)
-7. Tarot (TASKS 9–10)
-8. Horoscope detail (TASK 6)
-9. Paywall (TASK 13)
+Le thème suit le réglage système par défaut. L'utilisateur peut le forcer en `light` ou `dark` depuis Settings. Cette fonctionnalité est **accessible à tous les utilisateurs**, sans paywall.
 
-Do not add AI-generated horoscope content yet — use hardcoded sample text matching the Figma exactly. That feature comes after the UI is locked.
+### Logique de priorité
+
+```
+1. Préférence manuelle stockée dans profiles → appliquer
+2. Pas de préférence → suivre le réglage système (défaut)
+```
+
+### Modifications
+
+**`moonsoon-app/context/ThemeContext.tsx`**
+
+- Ajouter `useColorScheme` de React Native pour détecter le thème système
+- Ajouter un champ `themePreference: 'system' | 'light' | 'dark'` dans le state (persisté dans `profiles.theme_preference`, valeur initiale `'system'`)
+- Exposer `effectiveMode: 'light' | 'dark'` calculé selon la priorité ci-dessus
+- Exposer `setThemePreference(pref: 'system' | 'light' | 'dark')` — accessible sans condition à tout utilisateur connecté
+- Écouter les changements du scheme système via `useColorScheme` — si `themePreference === 'system'`, mettre à jour `effectiveMode` en temps réel
+
+**`moonsoon-app/supabase/migration.sql`**
+
+Ajouter la colonne dans la table `profiles` :
+```sql
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS theme_preference text
+  CHECK (theme_preference IN ('system','light','dark'))
+  DEFAULT 'system';
+```
+
+Fournir ce snippet comme **migration additive** séparée (ne pas écraser le fichier existant), dans `moonsoon-app/supabase/migration_002_theme.sql`.
+
+**`moonsoon-app/app/(tabs)/profile.tsx` — section Settings**
+
+Remplacer le toggle binaire "Theme" actuel par un **segmented control à 3 états** : `System / Light / Dark`.
+
+Design du segmented control :
+- Largeur totale, divisé en 3 segments égaux
+- Hauteur 36px
+- Border 0.5px en border color
+- Segment actif : fond `surface` + border accent 0.5px en bas uniquement
+- Segment inactif : fond transparent, texte `textSecondary`
+- Transitions 200ms opacity sur le tap
+- Tous les segments sont actifs pour tous les utilisateurs
+
+**Tous les composants utilisant des couleurs**
+
+Remplacer toute référence à `LightTheme` ou couleur hardcodée par `useTheme().colors`. Vérifier en particulier :
+- `components/Container.tsx` — `bg-white` hardcodé → remplacer par couleur de fond du thème
+- `app/(auth)/login.tsx`, `signup.tsx`, `forgot-password.tsx` — `bg-white` hardcodé
+- Tous les écrans (tabs) — vérifier `bg-white` et `text-gray-*` hardcodés
+
+> Ne pas modifier les fichiers auth si cela introduit des erreurs TypeScript. Annoter TODO si nécessaire.
 
 ---
 
-## Figma reference
+## TASK 3 — Iconographie de fond
 
-Full file: https://www.figma.com/design/SS0JEdwGJUluCuZ7BMwlnX/Moonsoon-%E2%80%93-UI-Design-System---Screens
+### Objectif
 
-| Page | Node IDs to inspect |
+Ajouter une couche décorative subtile en arrière-plan sur les écrans principaux pour consolider l'identité visuelle de l'app (cosmique, mystique, minimaliste). Les icônes ne doivent jamais gêner la lecture du contenu.
+
+### Composant : `moonsoon-app/components/BackgroundGlyphs.tsx`
+
+```ts
+interface BackgroundGlyphsProps {
+  variant: 'home' | 'tarot' | 'horoscope' | 'planner' | 'profile'
+  opacity?: number  // défaut : 0.04 en light, 0.07 en dark
+}
+```
+
+Implémentation en SVG inline (pas de fichier image, pas de dépendance) via `react-native-svg` :
+
+```bash
+pnpm add react-native-svg
+```
+
+Chaque `variant` définit un set de 4–6 glyphes positionnés en absolu, rotatés et scalés de façon fixe (pas d'animation). Glyphes à utiliser selon le variant :
+
+| Variant | Glyphes SVG |
 |---|---|
-| Design System | `0:1` |
-| Onboarding | `37:2` (Splash), `37:8` (Birth Data), `37:32` (Preferences) |
-| Home | `31:2` (Home), `32:2` (Horoscope Detail) |
-| Planner | `33:2` (Calendar), `33:112` (Goals) |
-| Tarot | `35:2` (Pre-Reveal), `35:46` (Revealed) |
-| Profile | `36:2` (Your Chart), `36:45` (Settings) |
-| Paywall | `39:2` |
+| `home` | Croissant de lune, petite étoile 4 branches (×3 tailles différentes), cercle fin |
+| `tarot` | Œil stylisé (triangle + cercle), étoile 6 branches, croix fine |
+| `horoscope` | Saturne (cercle + anneau elliptique), étoile 8 branches, point cardinal |
+| `planner` | Cercle concentrique (×2), losange fin, petit soleil (cercle + 8 traits) |
+| `profile` | Constellation (5 points reliés par traits 0.5px), croissant, étoile filante |
+
+Règles de positionnement :
+- Jamais sur le contenu principal (zone safe area)
+- Plutôt dans les coins et marges
+- `position: absolute`, `pointerEvents: 'none'`
+- `zIndex: 0`, contenu à `zIndex: 1`
+
+Les glyphes utilisent `stroke` uniquement (pas de fill), `strokeWidth: 0.5`, couleur = accent color du thème courant.
+
+### Intégration
+
+Ajouter `<BackgroundGlyphs variant="home" />` dans :
+- `app/(tabs)/index.tsx`
+- `app/(tabs)/tarot.tsx`
+- `app/horoscope/[category].tsx`
+- `app/(tabs)/planner.tsx`
+- `app/(tabs)/profile.tsx`
+
+Le composant doit être le **premier enfant** du `View` racine de chaque écran, en `position: absolute` avec `w-full h-full`.
+
+---
+
+## TASK 4 — Animations de navigation
+
+### Objectif
+
+Transitions fluides entre les écrans. Utiliser **Reanimated 3** (déjà installé) et les options de transition d'Expo Router.
+
+### 4a — Fade + slide horizontal pour la navigation principale
+
+**`moonsoon-app/app/_layout.tsx`**
+
+Configurer une animation custom sur le `Stack` racine :
+
+```tsx
+import { TransitionPresets } from '@react-navigation/stack'
+
+// Dans le Stack principal :
+<Stack
+  screenOptions={{
+    animation: 'fade_from_bottom', // baseline
+    // Override par une animation custom :
+    cardStyleInterpolator: ({ current, next, layouts }) => ({
+      cardStyle: {
+        opacity: current.progress,
+        transform: [
+          {
+            translateX: current.progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [layouts.screen.width * 0.08, 0], // slide 8% de la largeur
+            }),
+          },
+        ],
+      },
+      overlayStyle: {
+        opacity: current.progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 0.15],
+        }),
+      },
+    }),
+  }}
+>
+```
+
+> Direction : slide depuis la droite en push (`translateX` positif → 0), retour vers la droite en pop (0 → positif). Expo Router gère automatiquement le sens selon `push` ou `back`.
+
+**`moonsoon-app/app/(tabs)/_layout.tsx`**
+
+Pour la tab bar, ne pas animer le changement d'onglet (comportement natif standard, pas de slide entre tabs — seul le contenu de la page peut faire un fade).
+
+**Durée** : 280ms, easing `Easing.out(Easing.cubic)`.
+
+### 4b — Slide up pour le bouton Chat Tarot
+
+Le bouton "Chat with your cards" (ou équivalent) dans `app/(tabs)/tarot.tsx` apparaît en **slide up** depuis le bas avec un fade après le flip de la carte.
+
+Implémentation avec Reanimated :
+
+```tsx
+const chatButtonAnim = useSharedValue(0)
+
+// Déclencher après le flip (après 400ms) :
+const showChatButton = () => {
+  chatButtonAnim.value = withDelay(
+    420, // légèrement après la fin du flip
+    withSpring(1, { damping: 18, stiffness: 120 })
+  )
+}
+
+const chatButtonStyle = useAnimatedStyle(() => ({
+  opacity: chatButtonAnim.value,
+  transform: [{ translateY: interpolate(chatButtonAnim.value, [0, 1], [24, 0]) }],
+}))
+```
+
+Le bouton est un `Animated.View` wrappant un `TouchableOpacity`. Il reste visible après apparition (pas de disparition). Si la carte n'est pas encore retournée, le bouton est `display: none` (pas seulement invisible — éviter l'espace fantôme).
+
+---
+
+## TASK 5 — AI Chatbot "Tarot Reading"
+
+### Objectif
+
+Un chat contextuel lié au tirage du jour. L'utilisateur peut poser des questions sur ses cartes et recevoir des interprétations. Le chat connaît les cartes tirées, leurs positions, et le contexte astrologique du jour.
+
+### Provider API : Groq
+
+Utiliser **Groq** avec le modèle `llama-3.3-70b-versatile` pour le meilleur rapport qualité/coût/vitesse.
+
+- Vitesse : ~500 tokens/s (streaming quasi-instantané sur mobile)
+- Coût : ~$0.59/M input + $0.79/M output
+- Fallback si quota dépassé : `gemma2-9b-it` (même provider, même clé)
+
+La clé API Groq passe par une **Supabase Edge Function** — jamais exposée côté client.
+
+### Architecture
+
+```
+[React Native Chat Screen]
+    │
+    └── POST moonsoon-app/supabase/functions/tarot-chat/index.ts
+              │
+              ├── Vérifier JWT Supabase (Authorization header)
+              ├── Construire system prompt avec les cartes seedées
+              └── Stream Groq API → stream vers client
+```
+
+### Supabase Edge Function : `moonsoon-app/supabase/functions/tarot-chat/index.ts`
+
+```ts
+import { serve } from 'https://deno.land/std/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+serve(async (req) => {
+  // 1. Auth check
+  const jwt = req.headers.get('Authorization')?.replace('Bearer ', '')
+  // Valider le JWT avec Supabase Admin client
+
+  // 2. Body
+  const { messages, drawnCards, astroContext } = await req.json()
+  // messages : historique de conversation { role, content }[]
+  // drawnCards : DrawnCard[] depuis le tirage seedé
+  // astroContext : { sunSign, aspect, mantra }
+
+  // 3. System prompt
+  const systemPrompt = buildSystemPrompt(drawnCards, astroContext)
+
+  // 4. Groq API avec streaming
+  const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${Deno.env.get('GROQ_API_KEY')}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ],
+      max_tokens: 400,
+      stream: true,
+      temperature: 0.75,
+    }),
+  })
+
+  return new Response(groqRes.body, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Access-Control-Allow-Origin': '*',
+    },
+  })
+})
+```
+
+**`buildSystemPrompt`** :
+```
+You are a knowledgeable and empathetic tarot reader.
+Today's reading: [card 1 – past position], [card 2 – present position], [card 3 – future position].
+Astrological context: [today's aspect]. User's sun sign: [sunSign].
+Respond in [user language — French if lang=fr, English otherwise].
+Be direct and concrete, 80–120 words per response.
+Do not repeat the card names in every response. Adapt to the question asked.
+```
+
+Le champ `lang` est passé dans le body de la requête depuis le client (`i18next.language`).
+
+### Internationalisation (i18n)
+
+L'app détecte la langue système et adapte toutes les chaînes en conséquence. La langue par défaut (fallback) est **l'anglais**.
+
+#### Langues supportées au lancement
+
+| Code | Langue |
+|---|---|
+| `en` | English (fallback) |
+| `fr` | Français |
+
+Si la langue système n'est pas dans cette liste, l'app utilise `en`.
+
+#### Dépendance
+
+```bash
+pnpm add expo-localization i18next react-i18next
+```
+
+#### Fichiers à créer
+
+**`moonsoon-app/locales/en.json`** et **`moonsoon-app/locales/fr.json`**
+
+Couvrir toutes les chaînes visibles dans l'app : labels de navigation, titres d'écrans, boutons, messages d'erreur, placeholders, messages du chat.
+
+**`moonsoon-app/utils/i18n.ts`**
+
+```ts
+import * as Localization from 'expo-localization'
+import i18next from 'i18next'
+import { initReactI18next } from 'react-i18next'
+import en from '../locales/en.json'
+import fr from '../locales/fr.json'
+
+const deviceLang = Localization.getLocales()[0]?.languageCode ?? 'en'
+const supportedLangs = ['en', 'fr']
+const lng = supportedLangs.includes(deviceLang) ? deviceLang : 'en'
+
+i18next.use(initReactI18next).init({
+  resources: { en: { translation: en }, fr: { translation: fr } },
+  lng,
+  fallbackLng: 'en',
+  interpolation: { escapeValue: false },
+})
+
+export default i18next
+```
+
+Importer `utils/i18n.ts` en tête de `app/_layout.tsx` (avant tout render) pour initialiser i18next au démarrage.
+
+Utiliser `useTranslation()` dans tous les composants :
+```tsx
+const { t } = useTranslation()
+<Text>{t('tarot.chatButton')}</Text>
+```
+
+#### System prompt du chatbot — multilingue
+
+Le system prompt envoyé à Groq doit inclure la langue de l'utilisateur :
+
+```ts
+const systemPrompt = buildSystemPrompt(drawnCards, astroContext, userLang)
+// userLang = i18next.language  (passé dans le body de la requête Edge Function)
+```
+
+Dans le prompt :
+```
+Respond in ${userLang === 'fr' ? 'French' : 'English'}.
+Be direct, concrete, 80–120 words per response.
+```
+
+**Variable d'environnement à ajouter dans Supabase** :
+```
+GROQ_API_KEY=gsk_...
+```
+
+### Écran chat : `moonsoon-app/app/tarot/chat.tsx`
+
+Route accessible depuis le bouton "Chat with your cards" dans `tarot.tsx`.
+
+**Layout** :
+```
+┌─────────────────────────────┐
+│  ← Back    Chat Tarot        │  Header avec les 3 cartes en miniature (60×90)
+├─────────────────────────────┤
+│                             │
+│   [bulles de messages]      │  ScrollView inversé (dernière bulle en bas)
+│                             │
+├─────────────────────────────┤
+│  [TextInput]      [Envoyer] │  Safe area bottom
+└─────────────────────────────┘
+```
+
+**Composants** :
+
+- `MessageBubble` : fond `surface` pour l'assistant, fond `accent` (opacity 0.12) pour l'utilisateur. Coins à **0px**. Padding 12×16. Texte body.
+- `TypingIndicator` : 3 points animés (fade séquentiel, boucle 800ms) pendant le streaming
+- `CardMiniature` : dans le header, les 3 cartes du tirage, grayscale si renversée
+
+**Streaming côté client** :
+- Utiliser `fetch` avec lecture du `ReadableStream` body
+- Parser les `data: {...}` du SSE
+- Accumuler les delta `choices[0].delta.content` dans le state de la bulle en cours
+
+**Contraintes UX** :
+- **Maximum 30 messages par session** (voir calcul de rentabilité ci-dessous)
+- Compteur visible en bas du header : `"12 / 30"`
+- Si limite atteinte : afficher un bandeau `t('chat.limitReached')` ("Come back tomorrow for a new reading")
+- Input disabled pendant la réponse du modèle
+- Keyboard avoiding sur iOS et Android
+- Pas de persistance en base pour cette task (historique en mémoire = perdu à la fermeture)
+
+**Calcul de rentabilité — justification de la limite à 30**
+
+```
+Revenu par utilisateur premium : $7 / mois
+Après commission App Store (30%) : $4.90 net
+Infrastructure Supabase (free tier) : ~$0.30 / user
+Budget disponible pour l'IA : ~$4.60 / user / mois
+
+Coût Groq llama-3.3-70b par message (contexte croissant) :
+  • Input moyen : ~800 tokens (system prompt + historique + message user)
+  • Output moyen : ~200 tokens
+  • Coût : (800 × $0.59 + 200 × $0.79) / 1 000 000 = $0.000630 / message
+
+Session de 30 messages : 30 × $0.000630 = $0.019 / session
+
+Scénario usage quotidien (30 sessions / mois) : $0.57 / mois  ✓ dans budget
+Scénario usage intensif (3 sessions / jour) :   $1.71 / mois  ✓ dans budget
+Marge restante (usage intensif) : $4.60 - $1.71 = $2.89 / user
+```
+
+La limite à 30 est donc confortable tout en restant généreuse pour l'UX (une lecture tarot typique = 10–15 échanges).
+
+### Dépendances
+
+```bash
+pnpm add expo-localization i18next react-i18next
+```
+
+Aucune autre dépendance — le chat se fait en `fetch` natif + Supabase Edge Functions.
+
+**Variable d'env client à ajouter dans `.env`** :
+```
+EXPO_PUBLIC_SUPABASE_FUNCTIONS_URL=https://<project-ref>.supabase.co/functions/v1
+```
+
+---
+
+## Récapitulatif des fichiers touchés
+
+### Nouveaux fichiers
+
+| Fichier | Task |
+|---|---|
+| `utils/prng.ts` | 1 |
+| `utils/seed.ts` | 1 |
+| `utils/tarot.ts` | 1 |
+| `utils/horoscope.ts` | 1 |
+| `context/SeedContext.tsx` | 1 |
+| `supabase/migration_002_theme.sql` | 2 |
+| `utils/i18n.ts` | 2 |
+| `locales/en.json` | 2 |
+| `locales/fr.json` | 2 |
+| `components/BackgroundGlyphs.tsx` | 3 |
+| `app/tarot/chat.tsx` | 5 |
+| `supabase/functions/tarot-chat/index.ts` | 5 |
+
+### Fichiers modifiés
+
+| Fichier | Tasks |
+|---|---|
+| `app/_layout.tsx` | 1, 4a |
+| `context/ThemeContext.tsx` | 2 |
+| `app/(tabs)/index.tsx` | 1, 3 |
+| `app/(tabs)/tarot.tsx` | 1, 3, 4b |
+| `app/(tabs)/planner.tsx` | 3 |
+| `app/(tabs)/profile.tsx` | 1, 2, 3 |
+| `app/horoscope/[category].tsx` | 1, 3 |
+| `app/tarot/[cardId].tsx` | 1 |
+| `components/Container.tsx` | 2 |
+| `app.json` | 1 (expo-location) |
+| `.env` | 5 |
+
+---
+
+## Ordre d'implémentation recommandé
+
+```
+TASK 1 (seed) → TASK 2 (dark mode + i18n) → TASK 3 (glyphs) → TASK 4 (animations) → TASK 5 (chat)
+```
+
+Les tasks 3, 4 et 5 sont indépendantes entre elles. Les tasks 1 et 2 doivent être faites en premier car d'autres tasks en dépendent (seed pour le tirage, ThemeContext pour les couleurs des glyphs et du chat, i18n pour toutes les chaînes de l'UI).
+
+---
+
+## Checklist de validation par task
+
+### Task 1
+- [ ] `npx tsc --noEmit` clean
+- [ ] Ouvrir Tarot → noter les 3 cartes → forcer close → rouvrir → mêmes cartes
+- [ ] Lendemain (ou changer manuellement `today` en dur) → cartes différentes
+- [ ] Settings affiche "birth chart" si birth data complète
+- [ ] Settings affiche "your location" si GPS accordé sans birth data
+- [ ] Settings affiche "randomised" sinon
+- [ ] Home affiche le mantra du MANTRAS_POOL (pas un lorem ipsum)
+
+### Task 2
+- [ ] Passer l'app en mode sombre système → l'app suit automatiquement
+- [ ] Profile → Settings → segmented control `System / Light / Dark` affiché et fonctionnel pour tous
+- [ ] Tap `Dark` → dark s'applique immédiatement
+- [ ] Tap `System` → suit le réglage système en temps réel
+- [ ] Préférence persistée dans `profiles.theme_preference`
+- [ ] `bg-white` hardcodés remplacés sur tous les écrans principaux
+
+### Task 3
+- [ ] Glyphes visibles en fond sur chaque écran concerné
+- [ ] Opacity très basse (ne gêne pas la lecture)
+- [ ] `pointerEvents: 'none'` — les glyphes ne captent pas les taps
+- [ ] Couleur suit l'accent color du thème
+
+### Task 4
+- [ ] Navigation push → slide depuis la droite + fade
+- [ ] Navigation back → reverse
+- [ ] Durée ~280ms, pas de jank
+- [ ] Bouton chat tarot : invisible avant le flip, slide up + fade après le flip
+- [ ] Bouton chat tarot ne laisse pas d'espace fantôme avant apparition
+
+### Task 5
+- [ ] Tap "Chat with your cards" → navigate vers `app/tarot/chat.tsx`
+- [ ] Les 3 cartes du tirage apparaissent en miniature dans le header
+- [ ] Envoyer un message → réponse streamée (texte qui s'écrit en temps réel)
+- [ ] Indicateur de frappe visible pendant le stream
+- [ ] Compteur messages visible (`X / 30`)
+- [ ] À 30 messages → input disabled + bandeau
+- [ ] Keyboard avoiding fonctionne (le champ ne se cache pas sous le clavier)
+- [ ] App en français système → chat répond en français
+- [ ] App en anglais système → chat répond en anglais
+- [ ] App en langue non supportée → chat répond en anglais
+
+### Task i18n
+- [ ] Toutes les chaînes UI passent par `t()`
+- [ ] Passer la langue système en `fr` → tous les labels en français
+- [ ] Langue non supportée → fallback anglais propre (aucune clé manquante)

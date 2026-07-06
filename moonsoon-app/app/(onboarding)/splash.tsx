@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Fonts } from '@/constants/fonts';
 
 export default function Splash() {
+  const { t } = useTranslation();
   const router = useRouter();
 
   useEffect(() => {
@@ -14,7 +16,12 @@ export default function Splash() {
   return (
     <Pressable
       onPress={() => router.replace('/(onboarding)/birth-data' as never)}
-      style={{ flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center' }}>
+      style={{
+        flex: 1,
+        backgroundColor: '#000000',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
       {/* Thin cross — vertical 0.5 × 120, horizontal 100 × 0.5, both centered */}
       <View
         style={{
@@ -48,9 +55,9 @@ export default function Splash() {
           color: '#FFFFFF',
           marginBottom: 12,
         }}>
-        moonsoon
+        {t('onboarding.splashTitle')}
       </Text>
-      <Text style={{ fontSize: 15, color: '#999999' }}>align with the stars</Text>
+      <Text style={{ fontSize: 15, color: '#999999' }}>{t('onboarding.splashTagline')}</Text>
     </Pressable>
   );
 }

@@ -9,10 +9,16 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../utils/supabase';
+import { useTheme } from '../../context/ThemeContext';
+import { Fonts } from '../../constants/fonts';
 
 export default function Signup() {
+  const { t } = useTranslation();
+  const { palette, accent } = useTheme();
+
   // ---- State ----
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,17 +31,17 @@ export default function Signup() {
   const handleSignup = async () => {
     // Client-side validation
     if (!email.trim() || !password || !confirmPassword) {
-      setError('Please fill in all fields.');
+      setError(t('auth.fillAllFields'));
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+      setError(t('auth.passwordTooShort'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError(t('auth.passwordsDontMatch'));
       return;
     }
 
@@ -61,19 +67,66 @@ export default function Signup() {
     setSuccess(true);
   };
 
+  const labelStyle = {
+    fontSize: 11,
+    fontWeight: '500' as const,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase' as const,
+    color: palette.textTertiary,
+    marginBottom: 8,
+  };
+
+  const inputStyle = {
+    height: 48,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    color: palette.textPrimary,
+  };
+
+  const ctaStyle = {
+    height: 48,
+    backgroundColor: accent,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  };
+
   // ---- Success state ----
   if (success) {
     return (
-      <View className="flex-1 bg-white justify-center px-8">
-        <Text className="text-3xl font-bold text-center mb-4">Check Your Email</Text>
-        <Text className="text-base text-gray-500 text-center mb-8">
-          We sent a confirmation link to{' '}
-          <Text className="font-semibold text-gray-700">{email}</Text>. Tap the link in the email,
-          then come back and sign in.
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: palette.background,
+          justifyContent: 'center',
+          paddingHorizontal: 32,
+        }}>
+        <Text
+          style={{
+            fontFamily: Fonts.display,
+            fontSize: 32,
+            lineHeight: 38,
+            color: palette.textPrimary,
+            marginBottom: 16,
+          }}>
+          {t('auth.checkEmailTitle')}
+        </Text>
+        <Text
+          style={{
+            fontSize: 15,
+            lineHeight: 22,
+            color: palette.textSecondary,
+            marginBottom: 32,
+          }}>
+          {t('auth.checkEmailBody', { email })}
         </Text>
         <Link href="/(auth)/login" asChild>
-          <TouchableOpacity className="bg-indigo-600 rounded-xl py-4 items-center">
-            <Text className="text-white text-base font-semibold">Go to Sign In</Text>
+          <TouchableOpacity style={ctaStyle}>
+            <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
+              {t('auth.goToSignIn')}
+            </Text>
           </TouchableOpacity>
         </Link>
       </View>
@@ -84,30 +137,44 @@ export default function Signup() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-white">
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled">
-        <View className="flex-1 justify-center px-8">
+      style={{ flex: 1, backgroundColor: palette.background }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 32 }}>
           {/* Header */}
-          <Text className="text-3xl font-bold text-center mb-2">Create Account</Text>
-          <Text className="text-base text-gray-500 text-center mb-10">
-            Sign up to get started
+          <Text
+            style={{
+              fontFamily: Fonts.display,
+              fontSize: 32,
+              lineHeight: 38,
+              color: palette.textPrimary,
+              marginBottom: 8,
+            }}>
+            {t('auth.createAccount')}
+          </Text>
+          <Text style={{ fontSize: 15, color: palette.textSecondary, marginBottom: 40 }}>
+            {t('auth.signUpLead')}
           </Text>
 
           {/* Error banner */}
           {error ? (
-            <View className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
-              <Text className="text-red-700 text-sm">{error}</Text>
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: '#B4433A',
+                paddingHorizontal: 12,
+                paddingVertical: 12,
+                marginBottom: 16,
+              }}>
+              <Text style={{ color: '#B4433A', fontSize: 13 }}>{error}</Text>
             </View>
           ) : null}
 
           {/* Email */}
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Email</Text>
+          <Text style={labelStyle}>{t('auth.email')}</Text>
           <TextInput
-            className="border border-gray-300 rounded-xl px-4 py-3 mb-4 text-base bg-gray-50"
-            placeholder="you@example.com"
-            placeholderTextColor="#9CA3AF"
+            style={[inputStyle, { marginBottom: 16 }]}
+            placeholder={t('auth.emailPlaceholder')}
+            placeholderTextColor={palette.textTertiary}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -117,11 +184,11 @@ export default function Signup() {
           />
 
           {/* Password */}
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Password</Text>
+          <Text style={labelStyle}>{t('auth.password')}</Text>
           <TextInput
-            className="border border-gray-300 rounded-xl px-4 py-3 mb-4 text-base bg-gray-50"
-            placeholder="At least 6 characters"
-            placeholderTextColor="#9CA3AF"
+            style={[inputStyle, { marginBottom: 16 }]}
+            placeholder={t('auth.passwordPlaceholderMin')}
+            placeholderTextColor={palette.textTertiary}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -130,11 +197,11 @@ export default function Signup() {
           />
 
           {/* Confirm Password */}
-          <Text className="text-sm font-medium text-gray-700 mb-1 ml-1">Confirm Password</Text>
+          <Text style={labelStyle}>{t('auth.confirmPassword')}</Text>
           <TextInput
-            className="border border-gray-300 rounded-xl px-4 py-3 mb-6 text-base bg-gray-50"
-            placeholder="Re-enter your password"
-            placeholderTextColor="#9CA3AF"
+            style={[inputStyle, { marginBottom: 24 }]}
+            placeholder={t('auth.confirmPasswordPlaceholder')}
+            placeholderTextColor={palette.textTertiary}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
@@ -146,20 +213,26 @@ export default function Signup() {
           <TouchableOpacity
             onPress={handleSignup}
             disabled={loading}
-            className={`rounded-xl py-4 items-center ${loading ? 'bg-indigo-300' : 'bg-indigo-600'}`}>
+            style={[ctaStyle, { opacity: loading ? 0.6 : 1 }]}>
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text className="text-white text-base font-semibold">Create Account</Text>
+              <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
+                {t('auth.createAccount')}
+              </Text>
             )}
           </TouchableOpacity>
 
           {/* Login link */}
-          <View className="flex-row justify-center mt-8">
-            <Text className="text-gray-500">Already have an account? </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 32 }}>
+            <Text style={{ color: palette.textSecondary, fontSize: 15 }}>
+              {t('auth.haveAccount')}{' '}
+            </Text>
             <Link href="/(auth)/login" asChild>
               <TouchableOpacity>
-                <Text className="text-indigo-600 font-semibold">Sign In</Text>
+                <Text style={{ color: accent, fontSize: 15, fontWeight: '600' }}>
+                  {t('auth.signIn')}
+                </Text>
               </TouchableOpacity>
             </Link>
           </View>

@@ -1,15 +1,14 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/context/ThemeContext';
+import { useSeed } from '@/context/SeedContext';
+import { useBirthData } from '@/context/BirthDataContext';
+import { usePreferences } from '@/context/PreferencesContext';
+import { ASPECTS_POOL, getDailyHoroscopeParams, sunSignFromDate } from '@/utils/horoscope';
 import { Fonts } from '@/constants/fonts';
-
-const today = new Date();
-const dateLabel = today.toLocaleDateString(undefined, {
-  weekday: 'long',
-  month: 'long',
-  day: 'numeric',
-});
+import { BackgroundGlyphs } from '@/components/BackgroundGlyphs';
 
 const READINGS: Record<
   string,
@@ -82,11 +81,29 @@ const READINGS: Record<
 
 export default function HoroscopeDetail() {
   const { category } = useLocalSearchParams<{ category: string }>();
+  const { t, i18n } = useTranslation();
   const { palette } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { seed } = useSeed();
+  const { dateOfBirth } = useBirthData();
+  const { horoscopeDetailLevel } = usePreferences();
+  const brief = horoscopeDetailLevel === 'brief';
 
-  const reading = READINGS[(category as string)?.toLowerCase()] ?? READINGS.love;
+  const categoryKey =
+    (category as string)?.toLowerCase() in READINGS ? (category as string).toLowerCase() : 'love';
+  const reading = READINGS[categoryKey];
+  const paragraphs = brief ? reading.body.slice(0, 1) : reading.body;
+  const secondaryAspects = brief ? [] : reading.aspects;
+
+  const dateLabel = new Date().toLocaleDateString(i18n.language, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+  const params = seed != null ? getDailyHoroscopeParams(seed, sunSignFromDate(dateOfBirth)) : null;
+  const dailyAspect = params ? ASPECTS_POOL[params.aspectIndex] : null;
+  const luckyNumber = params?.luckyNumber ?? null;
 
   const Caption = ({ children }: { children: string }) => (
     <Text
@@ -106,90 +123,129 @@ export default function HoroscopeDetail() {
   );
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: palette.background }}
-      contentContainerStyle={{
-        paddingTop: insets.top + 24,
-        paddingBottom: 64,
-        paddingHorizontal: 32,
-      }}>
-      <Pressable onPress={() => router.back()} style={{ marginBottom: 24 }}>
-        <Text style={{ fontSize: 15, color: palette.textPrimary }}>‹ Back</Text>
-      </Pressable>
-
-      <Text
-        style={{
-          fontFamily: Fonts.display,
-          fontSize: 32,
-          color: palette.textPrimary,
-          marginBottom: 12,
+    <View style={{ flex: 1, backgroundColor: palette.background }}>
+      <BackgroundGlyphs variant="horoscope" />
+      <ScrollView
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        contentContainerStyle={{
+          paddingTop: insets.top + 24,
+          paddingBottom: 64,
+          paddingHorizontal: 32,
         }}>
-        {reading.title}
-      </Text>
-      <Caption>{dateLabel}</Caption>
+        <Pressable onPress={() => router.back()} style={{ marginBottom: 24 }}>
+          <Text style={{ fontSize: 15, color: palette.textPrimary }}>‹ {t('common.back')}</Text>
+        </Pressable>
 
-      <Divider />
-
-      {reading.body.map((p, i) => (
         <Text
-          key={i}
           style={{
-            fontSize: 15,
-            lineHeight: 24,
+            fontFamily: Fonts.display,
+            fontSize: 32,
             color: palette.textPrimary,
-            marginBottom: i < reading.body.length - 1 ? 16 : 0,
+            marginBottom: 12,
           }}>
-          {p}
+          {t(`home.categories.${categoryKey}`)}
         </Text>
-      ))}
+        <Caption>{dateLabel}</Caption>
 
-      <Divider />
+        <Divider />
 
-      <Caption>Where this comes from</Caption>
-      <Text
-        style={{
-          fontSize: 13,
-          lineHeight: 20,
-          color: palette.textSecondary,
-          marginTop: 16,
-          marginBottom: 24,
-        }}>
-        Each reading is grounded in the day’s major aspects. Here are the ones doing most of the work
-        today.
-      </Text>
-
-      {reading.aspects.map((a, i) => (
-        <View key={a.name}>
-          {i > 0 && (
-            <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 24 }} />
-          )}
+        {paragraphs.map((p, i) => (
           <Text
+            key={i}
             style={{
-              fontFamily: Fonts.headingSemi,
-              fontSize: 18,
+              fontSize: 15,
+              lineHeight: 24,
               color: palette.textPrimary,
-              marginBottom: 12,
+              marginBottom: i < paragraphs.length - 1 ? 16 : 0,
             }}>
-            {a.name}
+            {p}
           </Text>
-          <Text style={{ fontSize: 15, lineHeight: 24, color: palette.textPrimary }}>
-            {a.body}
-          </Text>
-        </View>
-      ))}
+        ))}
 
-      <Divider />
-      <Caption>Linked mantra</Caption>
-      <Text
-        style={{
-          fontFamily: Fonts.heading,
-          fontSize: 24,
-          lineHeight: 32,
-          color: palette.textPrimary,
-          marginTop: 16,
-        }}>
-        “{reading.mantra}”
-      </Text>
-    </ScrollView>
+        <Divider />
+
+        <Caption>{t('horoscope.whereThisComesFrom')}</Caption>
+        <Text
+          style={{
+            fontSize: 13,
+            lineHeight: 20,
+            color: palette.textSecondary,
+            marginTop: 16,
+            marginBottom: 24,
+          }}>
+          {t('horoscope.whereThisComesFromLead')}
+        </Text>
+
+        {dailyAspect && (
+          <View style={{ marginBottom: 24 }}>
+            <Text
+              style={{
+                fontFamily: Fonts.headingSemi,
+                fontSize: 18,
+                color: palette.textPrimary,
+              }}>
+              {dailyAspect}
+            </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                color: palette.textTertiary,
+                marginTop: 8,
+              }}>
+              {t('horoscope.todaysAspect')}
+            </Text>
+          </View>
+        )}
+
+        {secondaryAspects.map((a, i) => (
+          <View key={a.name}>
+            {i > 0 && (
+              <View style={{ height: 0.5, backgroundColor: palette.border, marginVertical: 24 }} />
+            )}
+            <Text
+              style={{
+                fontFamily: Fonts.headingSemi,
+                fontSize: 18,
+                color: palette.textPrimary,
+                marginBottom: 12,
+              }}>
+              {a.name}
+            </Text>
+            <Text style={{ fontSize: 15, lineHeight: 24, color: palette.textPrimary }}>
+              {a.body}
+            </Text>
+          </View>
+        ))}
+
+        {luckyNumber !== null && (
+          <>
+            <Divider />
+            <Caption>{t('horoscope.luckyNumber')}</Caption>
+            <Text
+              style={{
+                fontFamily: Fonts.heading,
+                fontSize: 24,
+                color: palette.textPrimary,
+                marginTop: 16,
+              }}>
+              {luckyNumber}
+            </Text>
+          </>
+        )}
+
+        <Divider />
+        <Caption>{t('horoscope.linkedMantra')}</Caption>
+        <Text
+          style={{
+            fontFamily: Fonts.heading,
+            fontSize: 24,
+            lineHeight: 32,
+            color: palette.textPrimary,
+            marginTop: 16,
+          }}>
+          “{reading.mantra}”
+        </Text>
+      </ScrollView>
+    </View>
   );
 }

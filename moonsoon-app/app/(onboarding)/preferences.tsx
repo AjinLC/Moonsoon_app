@@ -2,47 +2,19 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/context/ThemeContext';
 import { useBirthData } from '@/context/BirthDataContext';
 import { supabase } from '@/utils/supabase';
 import { useSession } from '@/context/AuthContext';
 import { Fonts } from '@/constants/fonts';
+import { Toggle } from '@/components/Toggle';
 
-const FOCUS_AREAS = [
-  'Health & Wellness',
-  'Career & Finance',
-  'Spiritual Growth',
-  'Love & Relationships',
-  'Creativity',
-  'Learning',
-];
-
-function Toggle({ on, onChange, accent, border }: { on: boolean; onChange: () => void; accent: string; border: string }) {
-  return (
-    <Pressable
-      onPress={onChange}
-      style={{
-        width: 40,
-        height: 22,
-        borderRadius: 11,
-        backgroundColor: on ? accent : border,
-        padding: 2,
-        alignItems: on ? 'flex-end' : 'flex-start',
-        justifyContent: 'center',
-      }}>
-      <View
-        style={{
-          width: 18,
-          height: 18,
-          borderRadius: 9,
-          backgroundColor: '#FFFFFF',
-        }}
-      />
-    </Pressable>
-  );
-}
+// Stored as language-neutral slugs; labels come from onboarding.focus.* keys.
+const FOCUS_AREAS = ['health', 'career', 'spiritual', 'love', 'creativity', 'learning'];
 
 export default function Preferences() {
+  const { t } = useTranslation();
   const { palette, accent } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -55,9 +27,7 @@ export default function Preferences() {
   const [saving, setSaving] = useState(false);
 
   const toggleFocus = (item: string) =>
-    setFocus((prev) =>
-      prev.includes(item) ? prev.filter((x) => x !== item) : [...prev, item]
-    );
+    setFocus((prev) => (prev.includes(item) ? prev.filter((x) => x !== item) : [...prev, item]));
 
   const finish = async () => {
     setSaving(true);
@@ -92,7 +62,7 @@ export default function Preferences() {
           color: palette.textPrimary,
           marginBottom: 12,
         }}>
-        Where would you like to focus?
+        {t('onboarding.preferencesTitle')}
       </Text>
       <Text
         style={{
@@ -101,7 +71,7 @@ export default function Preferences() {
           color: palette.textSecondary,
           marginBottom: 32,
         }}>
-        Pick any number — your readings will pay closer attention to these areas.
+        {t('onboarding.preferencesLead')}
       </Text>
 
       {/* Focus areas grid */}
@@ -134,7 +104,7 @@ export default function Preferences() {
                   textAlign: 'center',
                   paddingHorizontal: 8,
                 }}>
-                {item}
+                {t(`onboarding.focus.${item}`)}
               </Text>
             </Pressable>
           );
@@ -151,19 +121,19 @@ export default function Preferences() {
           color: palette.textTertiary,
           marginBottom: 16,
         }}>
-        Notifications
+        {t('onboarding.notifications')}
       </Text>
 
       {[
         {
-          label: 'Daily mantra reminders',
-          desc: 'A short prompt at sunrise to set the tone of your day.',
+          label: t('onboarding.mantraReminders'),
+          desc: t('onboarding.mantraRemindersDesc'),
           value: mantraOn,
           set: setMantraOn,
         },
         {
-          label: 'Horoscope updates',
-          desc: 'A nudge when your daily reading is ready.',
+          label: t('onboarding.horoscopeUpdates'),
+          desc: t('onboarding.horoscopeUpdatesDesc'),
           value: horoscopeOn,
           set: setHoroscopeOn,
         },
@@ -202,7 +172,9 @@ export default function Preferences() {
           marginTop: 48,
           opacity: saving ? 0.6 : 1,
         }}>
-        <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>Get started</Text>
+        <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '600' }}>
+          {t('onboarding.getStarted')}
+        </Text>
       </Pressable>
     </ScrollView>
   );

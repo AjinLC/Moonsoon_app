@@ -2,16 +2,18 @@ import { Tabs } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/context/ThemeContext';
 
 const TABS = [
-  { name: 'index', label: 'home', icon: 'home' as const },
-  { name: 'planner', label: 'planner', icon: 'calendar' as const },
-  { name: 'tarot', label: 'tarot', icon: 'layers' as const },
-  { name: 'profile', label: 'profile', icon: 'user' as const },
+  { name: 'index', key: 'home', icon: 'home' as const },
+  { name: 'planner', key: 'planner', icon: 'calendar' as const },
+  { name: 'tarot', key: 'tarot', icon: 'layers' as const },
+  { name: 'profile', key: 'profile', icon: 'user' as const },
 ];
 
 export default function TabLayout() {
+  const { t } = useTranslation();
   const { palette, accent } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -71,15 +73,15 @@ export default function TabLayout() {
                     color,
                     marginTop: 4,
                   }}>
-                  {tab.label}
+                  {t(`tabs.${tab.key}`)}
                 </Text>
               </Pressable>
             );
           })}
         </View>
       )}>
-      {TABS.map((t) => (
-        <Tabs.Screen key={t.name} name={t.name} options={{ title: t.label }} />
+      {TABS.map((tab) => (
+        <Tabs.Screen key={tab.name} name={tab.name} options={{ title: t(`tabs.${tab.key}`) }} />
       ))}
     </Tabs>
   );
